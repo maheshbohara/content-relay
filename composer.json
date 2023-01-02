@@ -1,0 +1,44 @@
+{
+	"name": "content-relay/content-relay",
+	"description": "Relay a page or post, its translations and media between two WordPress sites.",
+	"type": "wordpress-plugin",
+	"license": "GPL-2.0-or-later",
+	"require": {
+		"php": ">=7.4"
+	},
+	"require-dev": {
+		"dealerdirect/phpcodesniffer-composer-installer": "^1.0",
+		"php-stubs/acf-pro-stubs": "^6.3",
+		"php-stubs/wp-cli-stubs": "^2.11",
+		"phpcompatibility/phpcompatibility-wp": "^2.1",
+		"phpstan/extension-installer": "^1.4",
+		"phpstan/phpstan": "^2.1",
+		"phpunit/phpunit": "^9.6",
+		"szepeviktor/phpstan-wordpress": "^2.0",
+		"wp-coding-standards/wpcs": "^3.1",
+		"wp-phpunit/wp-phpunit": "7.0.2",
+		"yoast/phpunit-polyfills": "^2.0"
+	},
+	"config": {
+		"platform": {
+			"php": "7.4.33"
+		},
+		"allow-plugins": {
+			"dealerdirect/phpcodesniffer-composer-installer": true,
+			"phpstan/extension-installer": true
+		},
+		"sort-packages": true
+	},
+	"scripts": {
+		"lint": "phpcs",
+		"fix": "phpcbf",
+		"phpstan": "phpstan analyse --memory-limit=1G",
+		"test": "phpunit",
+		"test:integration": "phpunit -c phpunit-integration.xml.dist",
+		"check": [
+			"@lint",
+			"@phpstan",
+			"@test"
+		]
+	}
+}
