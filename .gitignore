@@ -1,0 +1,33 @@
+# Dependencies
+/vendor/
+/node_modules/
+
+# Build output
+/build/
+*.zip
+
+# Local test configuration and caches
+/tests/integration/wp-tests-config.php
+/.phpunit.result.cache
+/.phpunit.cache/
+/.phpcs-cache
+/phpcs.xml
+/phpstan.neon
+/phpunit.xml
+/.wp-env.override.json
+
+# Logs
+*.log
+npm-debug.log*
+
+# OS and editor files
+.DS_Store
+Thumbs.db
+/.idea/
+/.vscode/
+*.swp
+
+# Local tooling
+/.claude/
+/.env
+/.env.*
