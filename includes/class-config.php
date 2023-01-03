@@ -132,4 +132,40 @@ final class Config {
 
 		return null !== $object && $object->show_ui && ! in_array( $type, array( 'attachment', 'revision', 'nav_menu_item', 'wp_block', 'wp_template', 'wp_template_part', 'wp_navigation', 'acf-field-group', 'acf-field', 'acf-post-type', 'acf-taxonomy', 'acf-ui-options-page' ), true );
 	}
+
+	/**
+	 * Whether plain-HTTP receivers are allowed (local testing only).
+	 */
+	public static function allow_http(): bool {
+		return defined( 'CONTENT_RELAY_ALLOW_HTTP' ) && true === constant( 'CONTENT_RELAY_ALLOW_HTTP' );
+	}
+
+	/**
+	 * Sender IPs/CIDRs the receiver accepts. Null when no allowlist is configured (every IP is accepted).
+	 *
+	 * @return string[]|null
+	 */
+	public static function ip_allowlist(): ?array {
+		if ( ! defined( 'CONTENT_RELAY_IP_ALLOWLIST' ) ) {
+			return null;
+		}
+
+		$list = constant( 'CONTENT_RELAY_IP_ALLOWLIST' );
+		if ( is_string( $list ) ) {
+			$list = preg_split( '/[\s,]+/', $list, -1, PREG_SPLIT_NO_EMPTY );
+		}
+
+		return array_values( array_filter( array_map( 'strval', (array) $list ) ) );
+	}
+
+	/**
+	 * Whether a receiver URL uses a scheme this site may send to.
+	 *
+	 * @param string $url Receiver URL.
+	 */
+	public static function is_allowed_receiver_url( string $url ): bool {
+		$scheme = strtolower( (string) wp_parse_url( $url, PHP_URL_SCHEME ) );
+
+		return 'https' === $scheme || ( 'http' === $scheme && self::allow_http() );
+	}
 }
