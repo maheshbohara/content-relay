@@ -90,4 +90,46 @@ final class Config {
 
 		return true;
 	}
+
+	/**
+	 * Option holding the post types an administrator made relayable.
+	 */
+	public const POST_TYPES_OPTION = 'content_relay_post_types';
+
+	/**
+	 * Post types that can be relayed from this site, as chosen in the dashboard. Pages by default.
+	 *
+	 * @return string[]
+	 */
+	public static function post_types(): array {
+		$types = get_option( self::POST_TYPES_OPTION, array( 'page' ) );
+		$types = is_array( $types ) ? array_values( array_filter( array_map( 'strval', $types ), array( self::class, 'is_relayable_post_type' ) ) ) : array();
+
+		return array() === $types ? array( 'page' ) : $types;
+	}
+
+	/**
+	 * Saves the relayable post types, keeping only registered, relayable ones.
+	 *
+	 * @param string[] $types Post type names.
+	 * @return string[] What was saved.
+	 */
+	public static function set_post_types( array $types ): array {
+		$types = array_values( array_unique( array_filter( array_map( 'strval', $types ), array( self::class, 'is_relayable_post_type' ) ) ) );
+		$types = array() === $types ? array( 'page' ) : $types;
+		update_option( self::POST_TYPES_OPTION, $types, false );
+
+		return $types;
+	}
+
+	/**
+	 * Whether a post type can be offered for relaying: registered, shown in the admin, and not media or internals.
+	 *
+	 * @param string $type Post type name.
+	 */
+	public static function is_relayable_post_type( string $type ): bool {
+		$object = get_post_type_object( $type );
+
+		return null !== $object && $object->show_ui && ! in_array( $type, array( 'attachment', 'revision', 'nav_menu_item', 'wp_block', 'wp_template', 'wp_template_part', 'wp_navigation', 'acf-field-group', 'acf-field', 'acf-post-type', 'acf-taxonomy', 'acf-ui-options-page' ), true );
+	}
 }
