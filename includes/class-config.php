@@ -37,4 +37,57 @@ final class Config {
 	public static function can_receive(): bool {
 		return self::is_on( 'receive' );
 	}
+
+	/**
+	 * Whether this site may push to connections.
+	 */
+	public static function can_send(): bool {
+		return self::is_on( 'send' );
+	}
+
+	/**
+	 * Whether a switch is on: its constant when defined, otherwise the dashboard option.
+	 *
+	 * @param string $name `send` or `receive`.
+	 */
+	public static function is_on( string $name ): bool {
+		if ( ! isset( self::SWITCHES[ $name ] ) ) {
+			return false;
+		}
+		if ( self::is_locked( $name ) ) {
+			return true === constant( self::SWITCHES[ $name ] );
+		}
+
+		$switches = get_option( self::OPTION, array() );
+
+		return is_array( $switches ) && true === ( $switches[ $name ] ?? false );
+	}
+
+	/**
+	 * Whether wp-config.php pins a switch, so the dashboard cannot change it.
+	 *
+	 * @param string $name `send` or `receive`.
+	 */
+	public static function is_locked( string $name ): bool {
+		return isset( self::SWITCHES[ $name ] ) && defined( self::SWITCHES[ $name ] );
+	}
+
+	/**
+	 * Turns a dashboard switch on or off. Refused for an unknown or locked switch.
+	 *
+	 * @param string $name `send` or `receive`.
+	 * @param bool   $on   New state.
+	 */
+	public static function set( string $name, bool $on ): bool {
+		if ( ! isset( self::SWITCHES[ $name ] ) || self::is_locked( $name ) ) {
+			return false;
+		}
+
+		$switches          = get_option( self::OPTION, array() );
+		$switches          = is_array( $switches ) ? $switches : array();
+		$switches[ $name ] = $on;
+		update_option( self::OPTION, $switches, true );
+
+		return true;
+	}
 }
