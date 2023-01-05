@@ -58,4 +58,41 @@ final class Html_References {
 			)
 		);
 	}
+
+	/**
+	 * Rewrites attachment ids in HTML.
+	 *
+	 * @param string              $html HTML.
+	 * @param callable(int): ?int $map  Maps a source id to a target id; null leaves it unchanged.
+	 * @return string
+	 */
+	public static function replace_ids( string $html, callable $map ): string {
+		$map_one = static function ( string $id ) use ( $map ): string {
+			$mapped = $map( (int) $id );
+			return null === $mapped ? $id : (string) $mapped;
+		};
+
+		$html = (string) preg_replace_callback(
+			self::WP_IMAGE,
+			static function ( array $matches ) use ( $map_one ): string {
+				return 'wp-image-' . $map_one( $matches[1] );
+			},
+			$html
+		);
+
+		return (string) preg_replace_callback(
+			self::GALLERY,
+			static function ( array $matches ) use ( $map_one ): string {
+				$ids = (string) preg_replace_callback(
+					'/\d+/',
+					static function ( array $id ) use ( $map_one ): string {
+						return $map_one( $id[0] );
+					},
+					$matches[2]
+				);
+				return $matches[1] . $ids;
+			},
+			$html
+		);
+	}
 }
