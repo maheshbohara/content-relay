@@ -36,4 +36,95 @@ final class Line_Diff {
 	 * Longest line returned, in bytes; longer lines are cut.
 	 */
 	public const MAX_LINE_BYTES = 2000;
+
+	/**
+	 * Bytes shown before the first difference when a long changed line is cut.
+	 */
+	private const FOCUS_LEAD = 200;
+
+	/**
+	 * Diffs two texts.
+	 *
+	 * @param string $current   Current text.
+	 * @param string $incoming  Incoming text.
+	 * @param int    $max_cells Largest LCS table computed.
+	 * @return array{changed: bool, added: int, removed: int, truncated: bool, hunks: array<int, array{old_start: int, new_start: int, lines: array<int, array{0: string, 1: string}>}>}
+	 */
+	public static function diff( string $current, string $incoming, int $max_cells = self::MAX_CELLS ): array {
+		$result = array(
+			'changed'   => false,
+			'added'     => 0,
+			'removed'   => 0,
+			'truncated' => false,
+			'hunks'     => array(),
+		);
+		if ( $current === $incoming ) {
+			return $result;
+		}
+
+		$ops   = self::operations( explode( "\n", $current ), explode( "\n", $incoming ), $max_cells );
+		$last  = count( $ops ) - 1;
+		$focus = self::focus( $ops );
+
+		$changes = array();
+		foreach ( $ops as $index => $op ) {
+			if ( ' ' !== $op[0] ) {
+				$changes[] = $index;
+				if ( '+' === $op[0] ) {
+					++$result['added'];
+				} else {
+					++$result['removed'];
+				}
+			}
+		}
+		$result['changed'] = true;
+
+		$keep = array();
+		foreach ( $changes as $index ) {
+			$to = min( $last, $index + self::CONTEXT );
+			for ( $k = max( 0, $index - self::CONTEXT ); $k <= $to; $k++ ) {
+				$keep[ $k ] = true;
+			}
+		}
+		ksort( $keep );
+
+		$emitted  = 0;
+		$previous = -2;
+		$hunk     = null;
+		foreach ( array_keys( $keep ) as $index ) {
+			if ( $emitted >= self::MAX_LINES ) {
+				$result['truncated'] = true;
+				break;
+			}
+
+			$op = $ops[ $index ];
+			if ( $index !== $previous + 1 || null === $hunk ) {
+				if ( null !== $hunk ) {
+					$result['hunks'][] = $hunk;
+				}
+				$hunk = array(
+					'old_start' => $op[2],
+					'new_start' => $op[3],
+					'lines'     => array(),
+				);
+			}
+
+			$text = $op[1];
+			if ( strlen( $text ) > self::MAX_LINE_BYTES ) {
+				// Cut around the first difference with the line this one replaces, so a change deep inside a long
+				// block-comment line stays visible.
+				$start               = max( 0, min( ( $focus[ $index ] ?? 0 ) - self::FOCUS_LEAD, strlen( $text ) - self::MAX_LINE_BYTES ) );
+				$text                = ( $start > 0 ? '…' : '' ) . substr( $text, $start, self::MAX_LINE_BYTES ) . ( $start + self::MAX_LINE_BYTES < strlen( $op[1] ) ? '…' : '' );
+				$result['truncated'] = true;
+			}
+			$hunk['lines'][] = array( $op[0], $text );
+			$previous        = $index;
+			++$emitted;
+		}
+		if ( null !== $hunk ) {
+			$result['hunks'][] = $hunk;
+		}
+
+		return $result;
+	}
 }
