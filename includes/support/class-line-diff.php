@@ -215,4 +215,59 @@ final class Line_Diff {
 
 		return $ops;
 	}
+
+	/**
+	 * Edit script for the differing middle part.
+	 *
+	 * @param string[] $a         Old lines.
+	 * @param string[] $b         New lines.
+	 * @param int      $max_cells Largest LCS table computed.
+	 * @return array<int, array{0: string, 1: string}>
+	 */
+	private static function middle( array $a, array $b, int $max_cells ): array {
+		$n   = count( $a );
+		$m   = count( $b );
+		$ops = array();
+
+		if ( $n * $m > $max_cells ) {
+			foreach ( $a as $line ) {
+				$ops[] = array( '-', $line );
+			}
+			foreach ( $b as $line ) {
+				$ops[] = array( '+', $line );
+			}
+			return $ops;
+		}
+
+		$length = array_fill( 0, $n + 1, array_fill( 0, $m + 1, 0 ) );
+		for ( $i = $n - 1; $i >= 0; $i-- ) {
+			for ( $j = $m - 1; $j >= 0; $j-- ) {
+				$length[ $i ][ $j ] = $a[ $i ] === $b[ $j ] ? $length[ $i + 1 ][ $j + 1 ] + 1 : max( $length[ $i + 1 ][ $j ], $length[ $i ][ $j + 1 ] );
+			}
+		}
+
+		$i = 0;
+		$j = 0;
+		while ( $i < $n && $j < $m ) {
+			if ( $a[ $i ] === $b[ $j ] ) {
+				$ops[] = array( ' ', $a[ $i ] );
+				++$i;
+				++$j;
+			} elseif ( $length[ $i + 1 ][ $j ] >= $length[ $i ][ $j + 1 ] ) {
+				$ops[] = array( '-', $a[ $i ] );
+				++$i;
+			} else {
+				$ops[] = array( '+', $b[ $j ] );
+				++$j;
+			}
+		}
+		for ( ; $i < $n; $i++ ) {
+			$ops[] = array( '-', $a[ $i ] );
+		}
+		for ( ; $j < $m; $j++ ) {
+			$ops[] = array( '+', $b[ $j ] );
+		}
+
+		return $ops;
+	}
 }
