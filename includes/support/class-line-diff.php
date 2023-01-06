@@ -127,4 +127,42 @@ final class Line_Diff {
 
 		return $result;
 	}
+
+	/**
+	 * Byte offset of the first difference for each changed line that replaces another line.
+	 *
+	 * A run of removed lines directly followed by added lines is paired line by line.
+	 *
+	 * @param array<int, array{0: string, 1: string, 2: int, 3: int}> $ops Edit script.
+	 * @return array<int, int> Op index => offset.
+	 */
+	private static function focus( array $ops ): array {
+		$focus = array();
+		$count = count( $ops );
+		$index = 0;
+		while ( $index < $count ) {
+			if ( '-' !== $ops[ $index ][0] ) {
+				++$index;
+				continue;
+			}
+
+			$removed = $index;
+			while ( $index < $count && '-' === $ops[ $index ][0] ) {
+				++$index;
+			}
+			$added = $index;
+			while ( $index < $count && '+' === $ops[ $index ][0] ) {
+				++$index;
+			}
+
+			$pairs = min( $added - $removed, $index - $added );
+			for ( $k = 0; $k < $pairs; $k++ ) {
+				$offset                 = strspn( $ops[ $removed + $k ][1] ^ $ops[ $added + $k ][1], "\0" );
+				$focus[ $removed + $k ] = $offset;
+				$focus[ $added + $k ]   = $offset;
+			}
+		}
+
+		return $focus;
+	}
 }
