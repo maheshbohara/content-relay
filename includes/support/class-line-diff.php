@@ -165,4 +165,54 @@ final class Line_Diff {
 
 		return $focus;
 	}
+
+	/**
+	 * Edit script between two line lists.
+	 *
+	 * @param string[] $a         Old lines.
+	 * @param string[] $b         New lines.
+	 * @param int      $max_cells Largest LCS table computed.
+	 * @return array<int, array{0: string, 1: string, 2: int, 3: int}> Op (` `, `-`, `+`), text, old line number, new line number.
+	 */
+	private static function operations( array $a, array $b, int $max_cells ): array {
+		$n      = count( $a );
+		$m      = count( $b );
+		$prefix = 0;
+		while ( $prefix < $n && $prefix < $m && $a[ $prefix ] === $b[ $prefix ] ) {
+			++$prefix;
+		}
+		$suffix = 0;
+		while ( $suffix < $n - $prefix && $suffix < $m - $prefix && $a[ $n - 1 - $suffix ] === $b[ $m - 1 - $suffix ] ) {
+			++$suffix;
+		}
+
+		$middle_a = array_slice( $a, $prefix, $n - $prefix - $suffix );
+		$middle_b = array_slice( $b, $prefix, $m - $prefix - $suffix );
+
+		$script = array();
+		for ( $i = 0; $i < $prefix; $i++ ) {
+			$script[] = array( ' ', $a[ $i ] );
+		}
+		foreach ( self::middle( $middle_a, $middle_b, $max_cells ) as $op ) {
+			$script[] = $op;
+		}
+		for ( $i = $n - $suffix; $i < $n; $i++ ) {
+			$script[] = array( ' ', $a[ $i ] );
+		}
+
+		$ops    = array();
+		$old_no = 1;
+		$new_no = 1;
+		foreach ( $script as $op ) {
+			$ops[] = array( $op[0], $op[1], $old_no, $new_no );
+			if ( '+' !== $op[0] ) {
+				++$old_no;
+			}
+			if ( '-' !== $op[0] ) {
+				++$new_no;
+			}
+		}
+
+		return $ops;
+	}
 }
