@@ -57,4 +57,72 @@ final class Value_Path {
 
 		return $value;
 	}
+
+	/**
+	 * Lists every string leaf with its path.
+	 *
+	 * @param mixed                  $value  Root value.
+	 * @param array<int, string|int> $prefix Path of $value.
+	 * @return array<int, array{path: array<int, string|int>, value: string}>
+	 */
+	public static function string_leaves( $value, array $prefix = array() ): array {
+		if ( is_string( $value ) ) {
+			return array(
+				array(
+					'path'  => $prefix,
+					'value' => $value,
+				),
+			);
+		}
+
+		if ( $value instanceof \stdClass ) {
+			$value = get_object_vars( $value );
+		}
+
+		if ( ! is_array( $value ) ) {
+			return array();
+		}
+
+		$leaves = array();
+		foreach ( $value as $key => $item ) {
+			$path   = $prefix;
+			$path[] = $key;
+			foreach ( self::string_leaves( $item, $path ) as $leaf ) {
+				$leaves[] = $leaf;
+			}
+		}
+
+		return $leaves;
+	}
+
+	/**
+	 * Extracts positive integer ids from an id, a numeric string, or a flat list of either.
+	 *
+	 * @param mixed $value Value.
+	 * @return int[]
+	 */
+	public static function ids( $value ): array {
+		if ( is_int( $value ) ) {
+			return $value > 0 ? array( $value ) : array();
+		}
+
+		if ( is_string( $value ) ) {
+			return ( '' !== $value && ctype_digit( $value ) && (int) $value > 0 ) ? array( (int) $value ) : array();
+		}
+
+		if ( ! is_array( $value ) ) {
+			return array();
+		}
+
+		$ids = array();
+		foreach ( $value as $item ) {
+			if ( is_int( $item ) || is_string( $item ) ) {
+				foreach ( self::ids( $item ) as $id ) {
+					$ids[] = $id;
+				}
+			}
+		}
+
+		return $ids;
+	}
 }
