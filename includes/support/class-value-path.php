@@ -125,4 +125,33 @@ final class Value_Path {
 
 		return $ids;
 	}
+
+	/**
+	 * Replaces ids with mapped ids, keeping each value's type (int stays int, numeric string stays string).
+	 *
+	 * @param mixed               $value Value shaped as accepted by ids().
+	 * @param callable(int): ?int $map   Maps a source id to a target id; null leaves the value unchanged.
+	 * @return mixed
+	 */
+	public static function map_ids( $value, callable $map ) {
+		if ( is_int( $value ) && $value > 0 ) {
+			$mapped = $map( $value );
+			return null === $mapped ? $value : $mapped;
+		}
+
+		if ( is_string( $value ) && '' !== $value && ctype_digit( $value ) && (int) $value > 0 ) {
+			$mapped = $map( (int) $value );
+			return null === $mapped ? $value : (string) $mapped;
+		}
+
+		if ( is_array( $value ) ) {
+			foreach ( $value as $key => $item ) {
+				if ( is_int( $item ) || is_string( $item ) ) {
+					$value[ $key ] = self::map_ids( $item, $map );
+				}
+			}
+		}
+
+		return $value;
+	}
 }
