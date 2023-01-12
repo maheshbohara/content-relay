@@ -42,4 +42,66 @@ final class Attributes_Codec {
 
 		return ( JSON_ERROR_NONE === json_last_error() && $value instanceof \stdClass ) ? $value : null;
 	}
+
+	/**
+	 * Detects how an attribute JSON string was encoded.
+	 *
+	 * @param string $json Original attribute JSON.
+	 * @return array{flags: int, escapes: array<string, string>}
+	 */
+	public function detect_style( string $json ): array {
+		$flags = 0;
+
+		if ( false === strpos( $json, '\\/' ) ) {
+			$flags |= JSON_UNESCAPED_SLASHES;
+		}
+
+		// A \uXXXX escape that is not one of core's safety escapes means non-ASCII text was escaped.
+		if ( 1 !== preg_match( '/(?<!\\\\)(?:\\\\\\\\)*\\\\u(?!005c|002d|003c|003e|0026|0022)[0-9a-fA-F]{4}/', $json ) ) {
+			$flags |= JSON_UNESCAPED_UNICODE;
+		}
+
+		if ( 1 === preg_match( '/[0-9]\.0+(?=[,}\]\s])/', $json ) ) {
+			$flags |= JSON_PRESERVE_ZERO_FRACTION;
+		}
+
+		$escapes = array();
+		foreach ( self::SAFETY_ESCAPES as $raw => $escaped ) {
+			// Keep a character raw when the original has it raw; otherwise use core's escape.
+			if ( false === strpos( $json, $raw ) ) {
+				$escapes[ $raw ] = $escaped;
+			}
+		}
+
+		return array(
+			'flags'   => $flags,
+			'escapes' => $escapes,
+		);
+	}
+
+	/**
+	 * Encodes attributes in a detected style.
+	 *
+	 * @param \stdClass                                         $attrs Attributes.
+	 * @param array{flags: int, escapes: array<string, string>} $style Result of detect_style().
+	 * @return string|null Null when the value cannot be encoded.
+	 */
+	public function encode( \stdClass $attrs, array $style ): ?string {
+		$json = wp_json_encode( $attrs, $style['flags'] );
+		if ( false === $json ) {
+			return null;
+		}
+
+		return array() === $style['escapes'] ? $json : strtr( $json, $style['escapes'] );
+	}
+
+	/**
+	 * Whether two decoded attribute objects hold the same data (key order included).
+	 *
+	 * @param \stdClass $a First value.
+	 * @param \stdClass $b Second value.
+	 */
+	public function same( \stdClass $a, \stdClass $b ): bool {
+		return wp_json_encode( $a, JSON_PRESERVE_ZERO_FRACTION ) === wp_json_encode( $b, JSON_PRESERVE_ZERO_FRACTION );
+	}
 }
