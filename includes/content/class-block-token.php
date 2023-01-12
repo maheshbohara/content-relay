@@ -83,4 +83,32 @@ final class Block_Token {
 	 * @var int
 	 */
 	public int $attrs_length = 0;
+
+	/**
+	 * Offset where the inner content starts.
+	 *
+	 * @var int
+	 */
+	public int $inner_start = 0;
+
+	/**
+	 * Offset where the inner content ends (the closing delimiter starts).
+	 *
+	 * @var int
+	 */
+	public int $inner_end = 0;
+
+	/**
+	 * Offset just after the closing delimiter (or the void delimiter).
+	 *
+	 * @var int
+	 */
+	public int $outer_end = 0;
+
+	/**
+	 * Whether the block has an attributes JSON object.
+	 */
+	public function has_attrs(): bool {
+		return -1 !== $this->attrs_start;
+	}
 }
