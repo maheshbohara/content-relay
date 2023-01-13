@@ -98,4 +98,51 @@ final class Content_Editor {
 
 		return $this->apply_splices( $content, $splices );
 	}
+
+	/**
+	 * Returns the byte ranges of a block's own HTML, excluding nested blocks.
+	 *
+	 * @param Block_Token[] $tokens Scanned tokens.
+	 * @param int           $index  Block index, or FREEFORM for content outside every block.
+	 * @param int           $length Content length.
+	 * @return array<int, array{0: int, 1: int}> [start, end) pairs.
+	 *
+	 * @throws Content_Exception When the block does not exist.
+	 */
+	public function own_html_segments( array $tokens, int $index, int $length ): array {
+		if ( self::FREEFORM === $index ) {
+			$from     = 0;
+			$to       = $length;
+			$excluded = array_filter(
+				$tokens,
+				static function ( Block_Token $token ): bool {
+					return 0 === $token->depth;
+				}
+			);
+		} else {
+			if ( ! isset( $tokens[ $index ] ) ) {
+				throw new Content_Exception( sprintf( 'Block %d does not exist.', (int) $index ) );
+			}
+			$from     = $tokens[ $index ]->inner_start;
+			$to       = $tokens[ $index ]->inner_end;
+			$excluded = array();
+			foreach ( $tokens[ $index ]->children as $child ) {
+				$excluded[] = $tokens[ $child ];
+			}
+		}
+
+		$segments = array();
+		$cursor   = $from;
+		foreach ( $excluded as $block ) {
+			if ( $block->start > $cursor ) {
+				$segments[] = array( $cursor, $block->start );
+			}
+			$cursor = max( $cursor, $block->outer_end );
+		}
+		if ( $to > $cursor ) {
+			$segments[] = array( $cursor, $to );
+		}
+
+		return $segments;
+	}
 }
