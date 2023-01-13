@@ -39,4 +39,56 @@ final class State_Fingerprint {
 	 * @var Adapter
 	 */
 	private Adapter $language;
+
+	/**
+	 * Constructor.
+	 *
+	 * @param Fingerprint $fingerprint Hasher.
+	 * @param Adapter     $language    Language adapter.
+	 */
+	public function __construct( Fingerprint $fingerprint, Adapter $language ) {
+		$this->fingerprint = $fingerprint;
+		$this->language    = $language;
+	}
+
+	/**
+	 * Fingerprint of a post or attachment as stored on this site.
+	 *
+	 * @param int $post_id Post id.
+	 * @return string|null Null when the post does not exist.
+	 */
+	public function post( int $post_id ): ?string {
+		global $wpdb;
+
+		// phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery,WordPress.DB.DirectDatabaseQuery.NoCaching -- Conflict detection must hash the stored row, not a cached or filtered copy.
+		$row = $wpdb->get_row( $wpdb->prepare( "SELECT post_author, post_date_gmt, post_content, post_title, post_excerpt, post_status, comment_status, ping_status, post_password, post_name, post_parent, menu_order, post_mime_type FROM {$wpdb->posts} WHERE ID = %d", $post_id ), ARRAY_A );
+		if ( ! is_array( $row ) ) {
+			return null;
+		}
+
+		// phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery,WordPress.DB.DirectDatabaseQuery.NoCaching -- Conflict detection must hash the stored rows.
+		$meta_rows = $wpdb->get_results( $wpdb->prepare( "SELECT meta_key, meta_value FROM {$wpdb->postmeta} WHERE post_id = %d ORDER BY meta_key, meta_id", $post_id ), ARRAY_A );
+
+		$denied = Exporter::denied_meta();
+		$meta   = array();
+		foreach ( (array) $meta_rows as $meta_row ) {
+			$meta_key = (string) $meta_row['meta_key'];
+			if ( in_array( $meta_key, $denied, true ) || 0 === strpos( $meta_key, '_content_relay_' ) ) {
+				continue;
+			}
+			$meta[] = array( $meta_key, (string) $meta_row['meta_value'] );
+		}
+
+		// phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery,WordPress.DB.DirectDatabaseQuery.NoCaching -- Conflict detection must hash the stored rows.
+		$terms = $wpdb->get_col( $wpdb->prepare( "SELECT term_taxonomy_id FROM {$wpdb->term_relationships} WHERE object_id = %d ORDER BY term_taxonomy_id", $post_id ) );
+
+		return $this->fingerprint->of(
+			array(
+				'row'      => $row,
+				'meta'     => $meta,
+				'terms'    => array_map( 'intval', $terms ),
+				'language' => $this->language->post_language( $post_id ),
+			)
+		);
+	}
 }
