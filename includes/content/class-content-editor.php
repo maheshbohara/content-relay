@@ -145,4 +145,33 @@ final class Content_Editor {
 
 		return $segments;
 	}
+
+	/**
+	 * Applies non-overlapping splices from the end of the string backwards.
+	 *
+	 * @param string                                       $content Content.
+	 * @param array<int, array{0: int, 1: int, 2: string}> $splices [offset, length, replacement].
+	 * @return string
+	 *
+	 * @throws Content_Exception When two splices overlap.
+	 */
+	private function apply_splices( string $content, array $splices ): string {
+		usort(
+			$splices,
+			static function ( array $a, array $b ): int {
+				return $b[0] <=> $a[0];
+			}
+		);
+
+		$previous_start = PHP_INT_MAX;
+		foreach ( $splices as $splice ) {
+			if ( $splice[0] + $splice[1] > $previous_start ) {
+				throw new Content_Exception( 'Content edits overlap.' );
+			}
+			$content        = substr_replace( $content, $splice[2], $splice[0], $splice[1] );
+			$previous_start = $splice[0];
+		}
+
+		return $content;
+	}
 }
