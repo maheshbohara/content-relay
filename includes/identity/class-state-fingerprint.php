@@ -91,4 +91,54 @@ final class State_Fingerprint {
 			)
 		);
 	}
+
+	/**
+	 * Fingerprint of an object as carried by a manifest, together with the receiver ids its references resolve to.
+	 *
+	 * Including the resolved ids means an object is rewritten when something it points at resolves differently (for
+	 * example a term that had to be created), even though its own content did not change.
+	 *
+	 * @param array<string, mixed>      $record   Manifest object.
+	 * @param array<string, int|string> $resolved Referenced key => receiver id (or `new`).
+	 * @return string
+	 */
+	public function incoming( array $record, array $resolved = array() ): string {
+		foreach ( self::NON_CONTENT_KEYS as $key ) {
+			unset( $record[ $key ] );
+		}
+		ksort( $resolved );
+		$record['resolved'] = $resolved;
+
+		return $this->fingerprint->of( $record );
+	}
+
+	/**
+	 * Keys of every object an owned object references by id: location refs, parent, author and terms.
+	 *
+	 * @param array<string, mixed> $record Manifest object.
+	 * @return string[] Sorted, unique.
+	 */
+	public static function ref_keys( array $record ): array {
+		$keys = array();
+		foreach ( (array) ( $record['locations'] ?? array() ) as $location ) {
+			foreach ( (array) ( $location['refs'] ?? array() ) as $ref ) {
+				$keys[] = (string) $ref;
+			}
+		}
+		foreach ( array( 'parent', 'author' ) as $field ) {
+			if ( is_string( $record[ $field ] ?? null ) ) {
+				$keys[] = $record[ $field ];
+			}
+		}
+		foreach ( (array) ( $record['terms'] ?? array() ) as $term_keys ) {
+			foreach ( (array) $term_keys as $key ) {
+				$keys[] = (string) $key;
+			}
+		}
+
+		$keys = array_values( array_unique( $keys ) );
+		sort( $keys );
+
+		return $keys;
+	}
 }
