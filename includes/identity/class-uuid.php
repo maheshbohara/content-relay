@@ -83,4 +83,34 @@ final class Uuid {
 
 		return $uuid;
 	}
+
+	/**
+	 * Finds every post carrying a UUID. More than one result means a duplicated identity.
+	 *
+	 * @param string $uuid UUID.
+	 * @return int[]
+	 */
+	public function find_posts( string $uuid ): array {
+		global $wpdb;
+
+		// phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery,WordPress.DB.DirectDatabaseQuery.NoCaching -- Identity lookup must see the database as it is now, not a cached view.
+		$ids = $wpdb->get_col( $wpdb->prepare( "SELECT post_id FROM {$wpdb->postmeta} WHERE meta_key = %s AND meta_value = %s", self::META_KEY, $uuid ) );
+
+		return array_map( 'intval', $ids );
+	}
+
+	/**
+	 * Finds every term carrying a UUID.
+	 *
+	 * @param string $uuid UUID.
+	 * @return int[]
+	 */
+	public function find_terms( string $uuid ): array {
+		global $wpdb;
+
+		// phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery,WordPress.DB.DirectDatabaseQuery.NoCaching -- Identity lookup must see the database as it is now, not a cached view.
+		$ids = $wpdb->get_col( $wpdb->prepare( "SELECT term_id FROM {$wpdb->termmeta} WHERE meta_key = %s AND meta_value = %s", self::META_KEY, $uuid ) );
+
+		return array_map( 'intval', $ids );
+	}
 }
