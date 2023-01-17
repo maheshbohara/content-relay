@@ -39,4 +39,48 @@ final class Uuid {
 
 		return is_string( $value ) && self::is_valid( $value ) ? $value : null;
 	}
+
+	/**
+	 * Returns a post's UUID, assigning one when it has none.
+	 *
+	 * @param int $post_id Post id.
+	 * @return string
+	 */
+	public function ensure_post( int $post_id ): string {
+		$uuid = $this->get_post( $post_id );
+		if ( null === $uuid ) {
+			$uuid = wp_generate_uuid4();
+			update_post_meta( $post_id, self::META_KEY, $uuid );
+		}
+
+		return $uuid;
+	}
+
+	/**
+	 * Returns a term's UUID without creating one.
+	 *
+	 * @param int $term_id Term id.
+	 * @return string|null
+	 */
+	public function get_term( int $term_id ): ?string {
+		$value = get_term_meta( $term_id, self::META_KEY, true );
+
+		return is_string( $value ) && self::is_valid( $value ) ? $value : null;
+	}
+
+	/**
+	 * Returns a term's UUID, assigning one when it has none.
+	 *
+	 * @param int $term_id Term id.
+	 * @return string
+	 */
+	public function ensure_term( int $term_id ): string {
+		$uuid = $this->get_term( $term_id );
+		if ( null === $uuid ) {
+			$uuid = wp_generate_uuid4();
+			update_term_meta( $term_id, self::META_KEY, $uuid );
+		}
+
+		return $uuid;
+	}
 }
