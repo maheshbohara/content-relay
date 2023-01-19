@@ -209,4 +209,88 @@ final class Client {
 
 		return $response;
 	}
+
+	/**
+	 * Signs and sends one request.
+	 *
+	 * @param string                $method       HTTP method.
+	 * @param string                $route        Full REST route.
+	 * @param array<string, string> $query        Query parameters.
+	 * @param string                $body         Raw body.
+	 * @param string                $content_type Body content type.
+	 * @param int                   $timeout      Seconds.
+	 * @return array{status: int, ok: bool, code: string, message: string, data: array<string, mixed>}
+	 */
+	private function send( string $method, string $route, array $query, string $body, string $content_type, int $timeout ): array {
+		$timestamp = time();
+		$nonce     = Base64_Url::encode( random_bytes( 32 ) );
+		$signature = $this->signer->sign( $this->signer->canonical( $method, $route, $query, $timestamp, $nonce, $body ), $this->secret_key );
+		$user      = wp_get_current_user();
+
+		if ( $this->query_routes ) {
+			$url = $this->url . '/?' . http_build_query( array_merge( array( 'rest_route' => $route ), $query ), '', '&', PHP_QUERY_RFC3986 );
+		} else {
+			$url = $this->url . '/wp-json' . $route . ( array() === $query ? '' : '?' . http_build_query( $query, '', '&', PHP_QUERY_RFC3986 ) );
+		}
+
+		$args = array(
+			'method'      => $method,
+			'timeout'     => $timeout,
+			'redirection' => 0,
+			'headers'     => array(
+				'Accept'                    => 'application/json',
+				'Content-Type'              => $content_type,
+				'X-Content-Relay-Kid'       => $this->kid,
+				'X-Content-Relay-Timestamp' => (string) $timestamp,
+				'X-Content-Relay-Nonce'     => $nonce,
+				'X-Content-Relay-User'      => $user->exists() ? $user->user_login : 'wp-cli',
+				'X-Content-Relay-Signature' => $signature,
+			),
+			'body'        => 'GET' === $method ? null : $body,
+		);
+
+		/**
+		 * Filters the HTTP arguments of a request to a receiver.
+		 *
+		 * @param array<string, mixed> $args HTTP API arguments.
+		 * @param string               $url  Request URL.
+		 */
+		$args = (array) apply_filters( 'content_relay_http_args', $args, $url );
+
+		$response = wp_remote_request( $url, $args );
+		if ( is_wp_error( $response ) ) {
+			return self::result( 0, false, 'http_error', $response->get_error_message(), array() );
+		}
+
+		$status  = (int) wp_remote_retrieve_response_code( $response );
+		$decoded = json_decode( (string) wp_remote_retrieve_body( $response ), true );
+		if ( is_array( $decoded ) && isset( $decoded['ok'] ) ) {
+			return self::result( $status, true === $decoded['ok'], (string) ( $decoded['code'] ?? '' ), (string) ( $decoded['message'] ?? '' ), is_array( $decoded['data'] ?? null ) ? $decoded['data'] : array() );
+		}
+		if ( is_array( $decoded ) && isset( $decoded['code'] ) ) {
+			return self::result( $status, false, (string) $decoded['code'], (string) ( $decoded['message'] ?? '' ), array() );
+		}
+
+		return self::result( $status, false, 'bad_response', sprintf( 'The receiver answered HTTP %d without a Content Relay response. Is the plugin active there?', $status ), array() );
+	}
+
+	/**
+	 * Builds a result.
+	 *
+	 * @param int                  $status  HTTP status (0 when no response).
+	 * @param bool                 $ok      Success.
+	 * @param string               $code    Code.
+	 * @param string               $message Message.
+	 * @param array<string, mixed> $data    Data.
+	 * @return array{status: int, ok: bool, code: string, message: string, data: array<string, mixed>}
+	 */
+	private static function result( int $status, bool $ok, string $code, string $message, array $data ): array {
+		return array(
+			'status'  => $status,
+			'ok'      => $ok,
+			'code'    => $code,
+			'message' => $message,
+			'data'    => $data,
+		);
+	}
 }
