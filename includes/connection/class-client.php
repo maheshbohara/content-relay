@@ -125,4 +125,47 @@ final class Client {
 
 		return $this->request( 'GET', '/sessions/' . $session, $query, '', 'application/json', $timeout );
 	}
+
+	/**
+	 * Applies an approved plan.
+	 *
+	 * @param string    $session   Session id.
+	 * @param string    $plan_hash Hash of the approved plan.
+	 * @param bool|null $overwrite Apply with or without overwrite; null keeps the session's setting. Must match the
+	 *                             setting the approved plan was made with, or the hashes differ.
+	 * @param bool      $flush_cache Flush the receiver's whole object cache after applying.
+	 * @return array{status: int, ok: bool, code: string, message: string, data: array<string, mixed>}
+	 */
+	public function apply( string $session, string $plan_hash, ?bool $overwrite = null, bool $flush_cache = false ): array {
+		$payload = array( 'plan_hash' => $plan_hash );
+		if ( null !== $overwrite ) {
+			$payload['overwrite'] = $overwrite;
+		}
+		if ( $flush_cache ) {
+			$payload['flush_cache'] = true;
+		}
+
+		return $this->json( 'POST', '/sessions/' . $session . '/apply', $payload, 600 );
+	}
+
+	/**
+	 * Aborts an unapplied session.
+	 *
+	 * @param string $session Session id.
+	 * @return array{status: int, ok: bool, code: string, message: string, data: array<string, mixed>}
+	 */
+	public function abort( string $session ): array {
+		return $this->request( 'DELETE', '/sessions/' . $session );
+	}
+
+	/**
+	 * Rolls back an applied session.
+	 *
+	 * @param string $session   Session id.
+	 * @param bool   $overwrite Roll back even if the relayed objects changed since.
+	 * @return array{status: int, ok: bool, code: string, message: string, data: array<string, mixed>}
+	 */
+	public function rollback( string $session, bool $overwrite ): array {
+		return $this->json( 'POST', '/sessions/' . $session . '/rollback', array( 'overwrite' => $overwrite ), 600 );
+	}
 }
