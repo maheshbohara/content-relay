@@ -168,4 +168,45 @@ final class Client {
 	public function rollback( string $session, bool $overwrite ): array {
 		return $this->json( 'POST', '/sessions/' . $session . '/rollback', array( 'overwrite' => $overwrite ), 600 );
 	}
+
+	/**
+	 * Sends a JSON request.
+	 *
+	 * @param string               $method  HTTP method.
+	 * @param string               $path    Route below the namespace, e.g. `/sessions`.
+	 * @param array<string, mixed> $payload Body.
+	 * @param int                  $timeout Seconds.
+	 * @return array{status: int, ok: bool, code: string, message: string, data: array<string, mixed>}
+	 */
+	private function json( string $method, string $path, array $payload, int $timeout = 60 ): array {
+		return $this->request( $method, $path, array(), (string) wp_json_encode( $payload, JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE ), 'application/json', $timeout );
+	}
+
+	/**
+	 * Sends a signed request.
+	 *
+	 * @param string                $method       HTTP method.
+	 * @param string                $path         Route below the namespace.
+	 * @param array<string, string> $query        Query parameters.
+	 * @param string                $body         Raw body.
+	 * @param string                $content_type Body content type.
+	 * @param int                   $timeout      Seconds.
+	 * @return array{status: int, ok: bool, code: string, message: string, data: array<string, mixed>}
+	 */
+	public function request( string $method, string $path, array $query = array(), string $body = '', string $content_type = 'application/json', int $timeout = 60 ): array {
+		$route = '/' . self::REST_NAMESPACE . $path;
+
+		$response = $this->send( $method, $route, $query, $body, $content_type, $timeout );
+		if ( ! $this->query_routes && 404 === $response['status'] && 'bad_response' === $response['code'] ) {
+			// An HTML 404 means the site has no pretty permalinks; the REST API still answers at ?rest_route=.
+			$this->query_routes = true;
+			$retry              = $this->send( $method, $route, $query, $body, $content_type, $timeout );
+			if ( 'bad_response' === $retry['code'] ) {
+				$this->query_routes = false;
+			}
+			$response = $retry;
+		}
+
+		return $response;
+	}
 }
