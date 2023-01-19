@@ -79,4 +79,50 @@ final class Client {
 	public function handshake(): array {
 		return $this->json( 'POST', '/handshake', array() );
 	}
+
+	/**
+	 * Opens a session: sends the manifest, receives the preliminary plan and the files the receiver needs.
+	 *
+	 * @param array<string, mixed> $manifest  Manifest.
+	 * @param bool                 $overwrite Plan with overwrite.
+	 * @return array{status: int, ok: bool, code: string, message: string, data: array<string, mixed>}
+	 */
+	public function create_session( array $manifest, bool $overwrite ): array {
+		return $this->json(
+			'POST',
+			'/sessions',
+			array(
+				'manifest'  => $manifest,
+				'overwrite' => $overwrite,
+			),
+			120
+		);
+	}
+
+	/**
+	 * Uploads one chunk of a file.
+	 *
+	 * @param string $session Session id.
+	 * @param string $sha1    File SHA-1.
+	 * @param int    $offset  Offset of the chunk.
+	 * @param string $bytes   Chunk.
+	 * @return array{status: int, ok: bool, code: string, message: string, data: array<string, mixed>}
+	 */
+	public function upload( string $session, string $sha1, int $offset, string $bytes ): array {
+		return $this->request( 'PUT', '/sessions/' . $session . '/files/' . $sha1, array( 'offset' => (string) $offset ), $bytes, 'application/octet-stream', 120 );
+	}
+
+	/**
+	 * Session state; re-plans while the session is still open.
+	 *
+	 * @param string    $session   Session id.
+	 * @param bool|null $overwrite Plan with or without overwrite; null keeps the session's setting.
+	 * @param int       $timeout   Seconds; an open session is re-planned, which can take a while.
+	 * @return array{status: int, ok: bool, code: string, message: string, data: array<string, mixed>}
+	 */
+	public function session( string $session, ?bool $overwrite = null, int $timeout = 120 ): array {
+		$query = null === $overwrite ? array() : array( 'overwrite' => $overwrite ? '1' : '0' );
+
+		return $this->request( 'GET', '/sessions/' . $session, $query, '', 'application/json', $timeout );
+	}
 }
