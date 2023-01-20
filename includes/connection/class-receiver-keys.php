@@ -96,4 +96,49 @@ final class Receiver_Keys implements Key_Store {
 
 		return true;
 	}
+
+	/**
+	 * Records that a key was used, at most once a minute.
+	 *
+	 * @param string $kid Key id.
+	 * @param int    $now Unix time.
+	 */
+	public function touch( string $kid, int $now ): void {
+		$keys = $this->all();
+		if ( ! isset( $keys[ $kid ] ) ) {
+			return;
+		}
+
+		$last = is_string( $keys[ $kid ]['last_used'] ?? null ) ? (int) strtotime( $keys[ $kid ]['last_used'] ) : 0;
+		if ( $now - $last < self::TOUCH_INTERVAL ) {
+			return;
+		}
+
+		$keys[ $kid ]['last_used'] = gmdate( 'c', $now );
+		$this->save( $keys );
+	}
+
+	/**
+	 * Binary public key of an active key.
+	 *
+	 * @param string $kid Key id.
+	 * @return string|null Null when the key is unknown or revoked.
+	 */
+	public function public_key_for( string $kid ): ?string {
+		$record = $this->find( $kid );
+		if ( null === $record || ! empty( $record['revoked_at'] ) || ! is_string( $record['public_key'] ?? null ) ) {
+			return null;
+		}
+
+		return Base64_Url::decode( $record['public_key'] );
+	}
+
+	/**
+	 * Stores the keys without autoloading them.
+	 *
+	 * @param array<string, array<string, mixed>> $keys Keys.
+	 */
+	private function save( array $keys ): void {
+		update_option( self::OPTION, $keys, false );
+	}
 }
