@@ -47,4 +47,54 @@ final class Key_Codec {
 
 		return self::PREFIX . Base64_Url::encode( (string) $payload );
 	}
+
+	/**
+	 * Parses a connection key.
+	 *
+	 * @param string $key Connection key as pasted by an administrator.
+	 * @return array{url: string, kid: string, secret_key: string}|null Null when the key is malformed.
+	 */
+	public function decode( string $key ): ?array {
+		$key = trim( $key );
+		if ( 0 !== strpos( $key, self::PREFIX ) ) {
+			return null;
+		}
+
+		$json = Base64_Url::decode( substr( $key, strlen( self::PREFIX ) ) );
+		$data = null === $json ? null : json_decode( $json, true );
+		if ( ! is_array( $data ) || 1 !== ( $data['v'] ?? null ) ) {
+			return null;
+		}
+
+		$url = $data['url'] ?? null;
+		$kid = $data['kid'] ?? null;
+		$sk  = $data['sk'] ?? null;
+		if ( ! is_string( $url ) || ! is_string( $kid ) || ! is_string( $sk ) ) {
+			return null;
+		}
+
+		$secret_key = Base64_Url::decode( $sk );
+		if ( null === $secret_key || self::SECRET_KEY_BYTES !== strlen( $secret_key ) ) {
+			return null;
+		}
+
+		if ( ! self::is_valid_kid( $kid ) || 1 !== preg_match( '#^https?://[^\s/]+#', $url ) ) {
+			return null;
+		}
+
+		return array(
+			'url'        => rtrim( $url, '/' ),
+			'kid'        => $kid,
+			'secret_key' => $secret_key,
+		);
+	}
+
+	/**
+	 * Whether a string is a well-formed key id (16 lowercase hex characters).
+	 *
+	 * @param string $kid Key id.
+	 */
+	public static function is_valid_kid( string $kid ): bool {
+		return 1 === preg_match( '/^[a-f0-9]{16}$/', $kid );
+	}
 }
