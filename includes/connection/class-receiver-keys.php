@@ -57,4 +57,43 @@ final class Receiver_Keys implements Key_Store {
 			'key' => $key,
 		);
 	}
+
+	/**
+	 * Every key, revoked ones included.
+	 *
+	 * @return array<string, array<string, mixed>> Kid => record.
+	 */
+	public function all(): array {
+		$keys = get_option( self::OPTION, array() );
+
+		return is_array( $keys ) ? $keys : array();
+	}
+
+	/**
+	 * One key record.
+	 *
+	 * @param string $kid Key id.
+	 * @return array<string, mixed>|null
+	 */
+	public function find( string $kid ): ?array {
+		return $this->all()[ $kid ] ?? null;
+	}
+
+	/**
+	 * Revokes a key. Takes effect on the next request.
+	 *
+	 * @param string $kid Key id.
+	 * @return bool False when the key does not exist or is already revoked.
+	 */
+	public function revoke( string $kid ): bool {
+		$keys = $this->all();
+		if ( ! isset( $keys[ $kid ] ) || ! empty( $keys[ $kid ]['revoked_at'] ) ) {
+			return false;
+		}
+
+		$keys[ $kid ]['revoked_at'] = gmdate( 'c' );
+		$this->save( $keys );
+
+		return true;
+	}
 }
