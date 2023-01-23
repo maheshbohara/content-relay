@@ -37,4 +37,44 @@ final class Rest_Controller {
 	 * Failed requests per IP per minute before further requests are refused.
 	 */
 	private const MAX_FAILURES_PER_MINUTE = 10;
+
+	/**
+	 * Largest chunk accepted by default (2 MiB).
+	 */
+	private const DEFAULT_MAX_CHUNK_BYTES = 2097152;
+
+	/**
+	 * Verified caller of the current request.
+	 *
+	 * @var array{kid: string, sender_user: string, user_id: int}|null
+	 */
+	private ?array $caller = null;
+
+	/**
+	 * Request whose verdict is cached in $verdict.
+	 *
+	 * @var \WP_REST_Request|null
+	 */
+	private ?\WP_REST_Request $checked = null;
+
+	/**
+	 * Verdict for $checked.
+	 *
+	 * @var true|\WP_Error
+	 */
+	private $verdict = true;
+
+	/**
+	 * Receiver keys.
+	 *
+	 * @var Receiver_Keys
+	 */
+	private Receiver_Keys $keys;
+
+	/**
+	 * Staging area.
+	 *
+	 * @var Staging
+	 */
+	private Staging $staging;
 }
