@@ -77,4 +77,69 @@ final class Rest_Controller {
 	 * @var Staging
 	 */
 	private Staging $staging;
+
+	/**
+	 * Relay log.
+	 *
+	 * @var Log_Table
+	 */
+	private Log_Table $log;
+
+	/**
+	 * Constructor.
+	 */
+	public function __construct() {
+		$this->keys    = new Receiver_Keys();
+		$this->staging = Staging::for_site();
+		$this->log     = new Log_Table();
+	}
+
+	/**
+	 * Hooks the controller into the REST API.
+	 */
+	public static function register(): void {
+		$controller = new self();
+		add_action( 'rest_api_init', array( $controller, 'routes' ) );
+		add_filter( 'rest_post_dispatch', array( $controller, 'shape_response' ), 10, 3 );
+	}
+
+	/**
+	 * Largest chunk this site accepts.
+	 */
+	public static function max_chunk_bytes(): int {
+		/**
+		 * Filters the largest file chunk the receiver accepts, in bytes.
+		 *
+		 * @param int $bytes Bytes.
+		 */
+		return max( 65536, (int) apply_filters( 'content_relay_max_chunk_bytes', self::DEFAULT_MAX_CHUNK_BYTES ) );
+	}
+
+	/**
+	 * Registers the routes.
+	 */
+	public function routes(): void {
+		$session = '/sessions/(?P<id>[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12})';
+		$routes  = array(
+			array( '/handshake', 'POST', 'handshake' ),
+			array( '/sessions', 'POST', 'create_session' ),
+			array( $session . '/files/(?P<sha1>[a-f0-9]{40})', 'PUT', 'upload' ),
+			array( $session, 'GET', 'get_session' ),
+			array( $session, 'DELETE', 'delete_session' ),
+			array( $session . '/apply', 'POST', 'apply' ),
+			array( $session . '/rollback', 'POST', 'rollback' ),
+		);
+
+		foreach ( $routes as $route ) {
+			register_rest_route(
+				Client::REST_NAMESPACE,
+				$route[0],
+				array(
+					'methods'             => $route[1],
+					'callback'            => array( $this, $route[2] ),
+					'permission_callback' => array( $this, 'authorize' ),
+				)
+			);
+		}
+	}
 }
