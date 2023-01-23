@@ -123,4 +123,29 @@ final class Request_Verifier {
 
 		return self::result( true, '', $kid );
 	}
+
+	/**
+	 * Whether a nonce has the expected shape: 32 random bytes, base64url without padding.
+	 *
+	 * @param string $nonce Nonce.
+	 */
+	public static function is_valid_nonce( string $nonce ): bool {
+		return 1 === preg_match( '/^[A-Za-z0-9_-]{43}$/', $nonce );
+	}
+
+	/**
+	 * Builds a result.
+	 *
+	 * @param bool   $ok     Verified.
+	 * @param string $reason Failure reason.
+	 * @param string $kid    Claimed key id.
+	 * @return array{ok: bool, reason: string, kid: string}
+	 */
+	private static function result( bool $ok, string $reason, string $kid ): array {
+		return array(
+			'ok'     => $ok,
+			'reason' => $reason,
+			'kid'    => $kid,
+		);
+	}
 }
