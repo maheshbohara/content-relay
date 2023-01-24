@@ -142,4 +142,79 @@ final class Rest_Controller {
 			);
 		}
 	}
+
+	/**
+	 * Verifies the signature and switches to the key's issuing administrator.
+	 *
+	 * Parameters are validated inside the callbacks, not as route args: WordPress validates args before the permission
+	 * callback, which would describe the API to unauthenticated callers.
+	 *
+	 * The verdict is cached per request object. After dispatch, core's rest_send_allow_header() calls the permission
+	 * callback of every handler on the route again with the same request; verifying twice would reject the second pass
+	 * as a nonce replay and count a failure against the sender's IP for every legitimate request.
+	 *
+	 * @param \WP_REST_Request $request Request.
+	 * @return true|\WP_Error
+	 */
+	public function authorize( \WP_REST_Request $request ) {
+		if ( $request === $this->checked ) {
+			return $this->verdict;
+		}
+
+		$this->caller  = null;
+		$this->verdict = $this->verify_request( $request );
+		$this->checked = $request;
+
+		return $this->verdict;
+	}
+
+	/**
+	 * Verifies one request (see authorize()).
+	 *
+	 * @param \WP_REST_Request $request Request.
+	 * @return true|\WP_Error
+	 */
+	private function verify_request( \WP_REST_Request $request ) {
+		$ip = isset( $_SERVER['REMOTE_ADDR'] ) ? sanitize_text_field( wp_unslash( $_SERVER['REMOTE_ADDR'] ) ) : '';
+
+		$allowlist = Config::ip_allowlist();
+		if ( null !== $allowlist && ! Ip_Matcher::matches( $ip, $allowlist ) ) {
+			return $this->deny( $ip, 'ip', '' );
+		}
+
+		$failures = 'content_relay_fail_' . md5( $ip );
+		if ( (int) get_transient( $failures ) >= self::MAX_FAILURES_PER_MINUTE ) {
+			return new \WP_Error( 'content_relay_rate_limited', 'Too many failed requests. Try again later.', array( 'status' => 429 ) );
+		}
+
+		$headers = array();
+		foreach ( array( Request_Verifier::HEADER_KID, Request_Verifier::HEADER_TIMESTAMP, Request_Verifier::HEADER_NONCE, Request_Verifier::HEADER_SIGNATURE ) as $name ) {
+			$headers[ $name ] = trim( (string) $request->get_header( $name ) );
+		}
+
+		$query = $request->get_query_params();
+		unset( $query['rest_route'] );
+
+		$verifier = new Request_Verifier( new Signer(), $this->keys, new Transient_Replay_Guard() );
+		$result   = $verifier->verify( $request->get_method(), $request->get_route(), $query, $headers, (string) $request->get_body(), time() );
+		if ( ! $result['ok'] ) {
+			return $this->deny( $ip, $result['reason'], $result['kid'] );
+		}
+
+		$key  = (array) $this->keys->find( $result['kid'] );
+		$user = get_userdata( (int) ( $key['created_by'] ?? 0 ) );
+		if ( ! $user instanceof \WP_User || ! user_can( $user, 'manage_options' ) ) {
+			return $this->deny( $ip, 'issuer', $result['kid'] );
+		}
+
+		wp_set_current_user( $user->ID );
+		$this->keys->touch( $result['kid'], time() );
+		$this->caller = array(
+			'kid'         => $result['kid'],
+			'sender_user' => sanitize_user( (string) $request->get_header( Request_Verifier::HEADER_USER ) ),
+			'user_id'     => $user->ID,
+		);
+
+		return true;
+	}
 }
