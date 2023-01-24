@@ -699,4 +699,42 @@ final class Rest_Controller {
 
 		return $data;
 	}
+
+	/**
+	 * Bundle view of a staged session.
+	 *
+	 * @param string $id Session id.
+	 */
+	private function bundle( string $id ): ?Bundle {
+		$manifest = $this->staging->manifest( $id );
+
+		return null === $manifest ? null : new Bundle( $manifest, $this->staging->files_dir( $id ) );
+	}
+
+	/**
+	 * Receiver context.
+	 */
+	private function context(): Receive_Context {
+		return new Receive_Context( Adapter_Factory::create() );
+	}
+
+	/**
+	 * Apply result as it may leave this site: no backup path, created files relative to uploads.
+	 *
+	 * @param array<string, mixed> $result Applier result.
+	 * @return array<string, mixed>
+	 */
+	private function public_result( array $result ): array {
+		unset( $result['backup'] );
+
+		$uploads = wp_get_upload_dir();
+		$base    = trailingslashit( (string) $uploads['basedir'] );
+		$files   = array();
+		foreach ( (array) ( $result['created']['files'] ?? array() ) as $path ) {
+			$files[] = 0 === strpos( (string) $path, $base ) ? substr( (string) $path, strlen( $base ) ) : basename( (string) $path );
+		}
+		$result['created']['files'] = $files;
+
+		return $result;
+	}
 }
