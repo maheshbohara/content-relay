@@ -604,4 +604,99 @@ final class Rest_Controller {
 			'server_time'  => time(),
 		);
 	}
+
+	/**
+	 * Language codes of a manifest's roots.
+	 *
+	 * @param array<string, mixed> $manifest Manifest.
+	 * @return string[]
+	 */
+	private static function languages( array $manifest ): array {
+		$languages = array();
+		foreach ( (array) $manifest['roots'] as $key ) {
+			$language = $manifest['objects'][ $key ]['language'] ?? null;
+			if ( is_string( $language ) ) {
+				$languages[] = $language;
+			}
+		}
+
+		return $languages;
+	}
+
+	/**
+	 * Loads a session that belongs to the calling key.
+	 *
+	 * @param \WP_REST_Request $request Request.
+	 * @return array<string, mixed>|\WP_REST_Response Record, or a 404 response (also for another key's session).
+	 */
+	private function owned_session( \WP_REST_Request $request ) {
+		$record = $this->staging->read( (string) $request['id'] );
+		if ( null === $record || ! hash_equals( (string) ( $record['kid'] ?? '' ), (string) ( $this->caller['kid'] ?? '-' ) ) ) {
+			return self::error( 'unknown_session', 'There is no such session for this key.', 404 );
+		}
+
+		return $record;
+	}
+
+	/**
+	 * Response data for a session.
+	 *
+	 * Plan items the relay would replace carry a `diff` (see Differ). The diff is added after the plan hash is taken, so
+	 * it never affects approval.
+	 *
+	 * @param array<string, mixed> $record    Session record.
+	 * @param bool                 $plan      Whether to plan the staged manifest now.
+	 * @param bool|null            $overwrite Plan with or without overwrite; null uses the session's setting.
+	 * @return array<string, mixed>
+	 */
+	private function session_data( array $record, bool $plan, ?bool $overwrite = null ): array {
+		$overwrite = null === $overwrite ? (bool) $record['overwrite'] : $overwrite;
+		$id        = (string) $record['id'];
+		$data      = array(
+			'session'       => $id,
+			'status'        => $record['status'],
+			'overwrite'     => $overwrite,
+			'apply_session' => $record['apply_session'] ?? null,
+			'last_error'    => $record['last_error'] ?? null,
+			'result'        => $record['result'] ?? null,
+			'rollback'      => $record['rollback'] ?? null,
+		);
+
+		$bundle = $plan ? $this->bundle( $id ) : null;
+		if ( null === $bundle ) {
+			return $data;
+		}
+
+		$context = $this->context();
+		$planned = ( new Planner( $context ) )->plan( $bundle, $overwrite );
+		unset( $planned['matches'] );
+
+		$diffs = ( new Differ( $context ) )->diffs( $bundle, $planned );
+		foreach ( $planned['items'] as $index => $item ) {
+			if ( isset( $diffs[ $item['key'] ] ) ) {
+				$planned['items'][ $index ]['diff'] = $diffs[ $item['key'] ];
+			}
+		}
+
+		$files   = array();
+		$pending = 0;
+		foreach ( $planned['files_needed'] as $sha1 ) {
+			$bytes    = (int) ( $record['files'][ $sha1 ] ?? 0 );
+			$received = $this->staging->received( $id, $sha1 );
+			$complete = null !== $bundle->file_path( $sha1 );
+			$files[]  = array(
+				'sha1'     => $sha1,
+				'bytes'    => $bytes,
+				'received' => $received,
+				'complete' => $complete,
+			);
+			$pending += $complete ? 0 : 1;
+		}
+
+		$data['plan']          = $planned;
+		$data['files']         = $files;
+		$data['files_pending'] = $pending;
+
+		return $data;
+	}
 }
