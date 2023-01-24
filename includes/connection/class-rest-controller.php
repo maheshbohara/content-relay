@@ -530,4 +530,78 @@ final class Rest_Controller {
 
 		return self::ok( 'rolled_back', 'Relay rolled back.', $this->session_data( $record, false ) );
 	}
+
+	/**
+	 * Gives WordPress's own errors on these routes (bad JSON, rate limit, 401) the Content Relay response shape.
+	 *
+	 * @param mixed            $response Response.
+	 * @param \WP_REST_Server  $server   Server.
+	 * @param \WP_REST_Request $request  Request.
+	 * @return mixed
+	 */
+	public function shape_response( $response, \WP_REST_Server $server, \WP_REST_Request $request ) {
+		unset( $server );
+		if ( ! $response instanceof \WP_REST_Response || 0 !== strpos( $request->get_route(), '/' . Client::REST_NAMESPACE . '/' ) ) {
+			return $response;
+		}
+
+		$data = $response->get_data();
+		if ( is_array( $data ) && array_key_exists( 'ok', $data ) ) {
+			return $response;
+		}
+
+		if ( $response->is_error() ) {
+			$response->set_data(
+				array(
+					'ok'      => false,
+					'code'    => is_array( $data ) ? (string) ( $data['code'] ?? 'error' ) : 'error',
+					'message' => is_array( $data ) ? (string) ( $data['message'] ?? '' ) : '',
+					'data'    => array(),
+				)
+			);
+		}
+
+		return $response;
+	}
+
+	/**
+	 * Environment report (§5.4).
+	 *
+	 * @return array<string, mixed>
+	 */
+	public static function environment(): array {
+		global $wp_version;
+
+		$theme    = wp_get_theme();
+		$language = Adapter_Factory::create();
+
+		return array(
+			'plugin'       => CONTENT_RELAY_VERSION,
+			'schema'       => CONTENT_RELAY_SCHEMA,
+			'php'          => PHP_VERSION,
+			'wp'           => (string) $wp_version,
+			'home_url'     => untrailingslashit( (string) get_option( 'home' ) ),
+			'uploads_url'  => untrailingslashit( (string) wp_get_upload_dir()['baseurl'] ),
+			'theme'        => array(
+				'stylesheet' => get_stylesheet(),
+				'version'    => (string) $theme->get( 'Version' ),
+			),
+			'language'     => array(
+				'adapter' => $language->id(),
+				'default' => $language->default_language(),
+				'active'  => $language->active_languages(),
+			),
+			'plugins'      => array(
+				'acf'   => defined( 'ACF_VERSION' ) ? (string) constant( 'ACF_VERSION' ) : null,
+				'wpml'  => defined( 'ICL_SITEPRESS_VERSION' ) ? (string) constant( 'ICL_SITEPRESS_VERSION' ) : null,
+				'yoast' => defined( 'WPSEO_VERSION' ) ? (string) constant( 'WPSEO_VERSION' ) : null,
+			),
+			'limits'       => array(
+				'max_chunk_bytes'    => self::max_chunk_bytes(),
+				'max_execution_time' => (int) ini_get( 'max_execution_time' ),
+			),
+			'object_cache' => wp_using_ext_object_cache(),
+			'server_time'  => time(),
+		);
+	}
 }
