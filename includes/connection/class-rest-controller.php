@@ -386,4 +386,103 @@ final class Rest_Controller {
 
 		return self::ok( 'aborted', 'Session aborted and its staging files removed.', array( 'session' => $record['id'] ) );
 	}
+
+	/**
+	 * `POST /sessions/{id}/apply {plan_hash, overwrite, flush_cache}` — applies the approved plan; `flush_cache` also
+	 * flushes the whole object cache afterwards (spec §8.5 step D).
+	 *
+	 * Runs to completion in one request and answers `status: done`; the Applier's steps are not resumable, so there is
+	 * nothing to poll for.
+	 *
+	 * @param \WP_REST_Request $request Request.
+	 * @return \WP_REST_Response
+	 */
+	public function apply( \WP_REST_Request $request ): \WP_REST_Response {
+		$record = $this->owned_session( $request );
+		if ( $record instanceof \WP_REST_Response ) {
+			return $record;
+		}
+		if ( Staging::STATUS_PLANNED !== $record['status'] ) {
+			return self::error( 'session_not_open', sprintf( 'This session is %s.', $record['status'] ), 409 );
+		}
+
+		$hash = $request->get_param( 'plan_hash' );
+		if ( ! is_string( $hash ) || '' === $hash ) {
+			return self::error( 'invalid_request', 'plan_hash is required.', 400 );
+		}
+
+		$overwrite = $request->get_param( 'overwrite' );
+		$overwrite = is_bool( $overwrite ) ? $overwrite : (bool) $record['overwrite'];
+
+		$id     = (string) $record['id'];
+		$bundle = $this->bundle( $id );
+		if ( null === $bundle ) {
+			return self::error( 'session_not_open', 'The session has no staged manifest.', 409 );
+		}
+
+		try {
+			$this->staging->update( $id, array( 'status' => Staging::STATUS_APPLYING ) );
+			if ( function_exists( 'set_time_limit' ) ) {
+				set_time_limit( 0 ); // phpcs:ignore Squiz.PHP.DiscouragedFunctions.Discouraged -- A relay commit must not be cut off halfway through placing media.
+			}
+			$result = ( new Applier( $this->context() ) )->apply( $bundle, $overwrite, $hash );
+		} catch ( Apply_Exception $e ) {
+			$this->staging->update(
+				$id,
+				array(
+					'status'     => Staging::STATUS_PLANNED,
+					'last_error' => $this->public_message( $e->getMessage() ),
+				)
+			);
+			$this->log->update( $id, Log_Table::IN, array( 'error' => $this->public_message( $e->getMessage() ) ) );
+			return self::error( 'apply_failed', $this->public_message( $e->getMessage() ), 409 );
+		} catch ( \Throwable $e ) {
+			$this->staging->update(
+				$id,
+				array(
+					'status'     => Staging::STATUS_PLANNED,
+					'last_error' => 'Unexpected error.',
+				)
+			);
+			return self::error( 'apply_error', 'The relay failed with an unexpected error; nothing was committed.', 500 );
+		}
+
+		$flush = true === $request->get_param( 'flush_cache' );
+		if ( $flush ) {
+			wp_cache_flush();
+		}
+		$result['object_cache_flushed'] = $flush;
+
+		$record = $this->staging->update(
+			$id,
+			array(
+				'status'        => Staging::STATUS_APPLIED,
+				'apply_session' => $result['session'],
+				'applied_at'    => gmdate( 'c' ),
+				'result'        => $this->public_result( $result ),
+				'last_error'    => null,
+			)
+		);
+		$this->staging->remove_files( $id );
+
+		$root_id = 0;
+		foreach ( (array) $result['written'] as $written ) {
+			if ( ( $written['key'] ?? '' ) === ( $record['root'] ?? '' ) ) {
+				$root_id = (int) $written['id'];
+			}
+		}
+		$this->log->update(
+			$id,
+			Log_Table::IN,
+			array(
+				'status'        => Log_Table::STATUS_APPLIED,
+				'apply_session' => (string) $result['session'],
+				'root_post_id'  => $root_id,
+				'result'        => $record['result'],
+				'error'         => null,
+			)
+		);
+
+		return self::ok( 'done', array() === $result['problems'] ? 'Relay applied.' : 'Relay applied, but verification found problems.', $this->session_data( $record, false ) );
+	}
 }
