@@ -347,4 +347,43 @@ final class Rest_Controller {
 				return self::ok( $data['complete'] ? 'file_complete' : 'chunk_stored', $data['complete'] ? 'File received and verified.' : 'Chunk stored.', $data );
 		}
 	}
+
+	/**
+	 * `GET /sessions/{id}` — session state; an open session is re-planned against the files received so far.
+	 *
+	 * @param \WP_REST_Request $request Request.
+	 * @return \WP_REST_Response
+	 */
+	public function get_session( \WP_REST_Request $request ): \WP_REST_Response {
+		$record = $this->owned_session( $request );
+		if ( $record instanceof \WP_REST_Response ) {
+			return $record;
+		}
+
+		$overwrite = $request->get_param( 'overwrite' );
+		$overwrite = null === $overwrite ? null : in_array( (string) $overwrite, array( '1', 'true' ), true );
+
+		return self::ok( 'session', 'Session state.', $this->session_data( $record, Staging::STATUS_PLANNED === $record['status'], $overwrite ) );
+	}
+
+	/**
+	 * `DELETE /sessions/{id}` — aborts an unapplied session and removes its staging files.
+	 *
+	 * @param \WP_REST_Request $request Request.
+	 * @return \WP_REST_Response
+	 */
+	public function delete_session( \WP_REST_Request $request ): \WP_REST_Response {
+		$record = $this->owned_session( $request );
+		if ( $record instanceof \WP_REST_Response ) {
+			return $record;
+		}
+		if ( Staging::STATUS_PLANNED !== $record['status'] ) {
+			return self::error( 'session_not_open', 'Only an unapplied session can be aborted; an applied one is kept so it can be rolled back.', 409 );
+		}
+
+		$this->staging->delete( (string) $record['id'] );
+		$this->log->update( (string) $record['id'], Log_Table::IN, array( 'status' => Log_Table::STATUS_ABORTED ) );
+
+		return self::ok( 'aborted', 'Session aborted and its staging files removed.', array( 'session' => $record['id'] ) );
+	}
 }
