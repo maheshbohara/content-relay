@@ -217,4 +217,78 @@ final class Rest_Controller {
 
 		return true;
 	}
+
+	/**
+	 * `POST /handshake` — environment report (§5.4).
+	 *
+	 * @return \WP_REST_Response
+	 */
+	public function handshake(): \WP_REST_Response {
+		return self::ok( 'ready', 'Ready to receive.', self::environment() );
+	}
+
+	/**
+	 * `POST /sessions` — stages a manifest and returns the preliminary plan and the files needed.
+	 *
+	 * @param \WP_REST_Request $request Request.
+	 * @return \WP_REST_Response
+	 */
+	public function create_session( \WP_REST_Request $request ): \WP_REST_Response {
+		$manifest = $request->get_param( 'manifest' );
+		if ( ! is_array( $manifest ) ) {
+			return self::error( 'invalid_request', 'The request carries no manifest.', 400 );
+		}
+
+		try {
+			Bundle::validate( $manifest );
+		} catch ( Receive_Exception $e ) {
+			return self::error( 'invalid_manifest', $this->public_message( $e->getMessage() ), 400 );
+		}
+
+		$files = array();
+		foreach ( $manifest['objects'] as $record ) {
+			if ( 'attachment' === $record['kind'] && 'owned' === $record['role'] && isset( $record['file']['sha1'] ) ) {
+				$files[ (string) $record['file']['sha1'] ] = (int) ( $record['file']['bytes'] ?? 0 );
+			}
+		}
+
+		$this->staging->purge( time(), Staging::TTL_SECONDS );
+
+		$id     = wp_generate_uuid4();
+		$record = array(
+			'id'          => $id,
+			'kid'         => $this->caller['kid'] ?? '',
+			'sender_user' => $this->caller['sender_user'] ?? '',
+			'user_id'     => $this->caller['user_id'] ?? 0,
+			'source'      => (string) $manifest['source']['home_url'],
+			'root'        => (string) $manifest['root'],
+			'overwrite'   => true === $request->get_param( 'overwrite' ),
+			'status'      => Staging::STATUS_PLANNED,
+			'files'       => $files,
+			'created_at'  => gmdate( 'c' ),
+		);
+
+		try {
+			$this->staging->create( $id, $record, $manifest );
+		} catch ( Staging_Exception $e ) {
+			return self::error( 'storage_error', $e->getMessage(), 500 );
+		}
+
+		$root = (array) ( $manifest['objects'][ $manifest['root'] ] ?? array() );
+		$this->log->insert(
+			array(
+				'session'    => $id,
+				'direction'  => Log_Table::IN,
+				'peer_url'   => $record['source'],
+				'kid'        => $record['kid'],
+				'root_uuid'  => (string) ( $root['uuid'] ?? '' ),
+				'root_title' => (string) ( $root['title'] ?? '' ),
+				'languages'  => implode( ',', self::languages( $manifest ) ),
+				'user_login' => sprintf( '%1$s (as %2$s)', '' !== $record['sender_user'] ? $record['sender_user'] : '?', wp_get_current_user()->user_login ),
+				'status'     => Log_Table::STATUS_PLANNED,
+			)
+		);
+
+		return self::ok( 'session_created', 'Session created. Upload the files needed, then fetch the session for the final plan.', $this->session_data( $record, true ), 201 );
+	}
 }
