@@ -485,4 +485,49 @@ final class Rest_Controller {
 
 		return self::ok( 'done', array() === $result['problems'] ? 'Relay applied.' : 'Relay applied, but verification found problems.', $this->session_data( $record, false ) );
 	}
+
+	/**
+	 * `POST /sessions/{id}/rollback` — undoes an applied session.
+	 *
+	 * @param \WP_REST_Request $request Request.
+	 * @return \WP_REST_Response
+	 */
+	public function rollback( \WP_REST_Request $request ): \WP_REST_Response {
+		$record = $this->owned_session( $request );
+		if ( $record instanceof \WP_REST_Response ) {
+			return $record;
+		}
+		if ( Staging::STATUS_APPLIED !== $record['status'] || ! is_string( $record['apply_session'] ?? null ) ) {
+			return self::error( 'not_applied', sprintf( 'This session is %s; only an applied session can be rolled back.', $record['status'] ), 409 );
+		}
+
+		$overwrite = true === $request->get_param( 'overwrite' );
+
+		try {
+			$summary = ( new Rollback( $this->context() ) )->rollback( $record['apply_session'], $overwrite );
+		} catch ( Apply_Exception $e ) {
+			return self::error( 'rollback_failed', $this->public_message( $e->getMessage() ), 409 );
+		}
+
+		$record = $this->staging->update(
+			(string) $record['id'],
+			array(
+				'status'         => Staging::STATUS_ROLLED_BACK,
+				'rolled_back_at' => gmdate( 'c' ),
+				'rollback'       => $summary,
+			)
+		);
+
+		$row = $this->log->find_session( (string) $record['id'], Log_Table::IN );
+		$this->log->update(
+			(string) $record['id'],
+			Log_Table::IN,
+			array(
+				'status' => Log_Table::STATUS_ROLLED_BACK,
+				'result' => array_merge( (array) ( $row['result'] ?? array() ), array( 'rollback' => $summary ) ),
+			)
+		);
+
+		return self::ok( 'rolled_back', 'Relay rolled back.', $this->session_data( $record, false ) );
+	}
 }
