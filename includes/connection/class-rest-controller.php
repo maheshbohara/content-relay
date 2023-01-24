@@ -291,4 +291,60 @@ final class Rest_Controller {
 
 		return self::ok( 'session_created', 'Session created. Upload the files needed, then fetch the session for the final plan.', $this->session_data( $record, true ), 201 );
 	}
+
+	/**
+	 * `PUT /sessions/{id}/files/{sha1}?offset=` — one chunk of a file.
+	 *
+	 * @param \WP_REST_Request $request Request.
+	 * @return \WP_REST_Response
+	 */
+	public function upload( \WP_REST_Request $request ): \WP_REST_Response {
+		$record = $this->owned_session( $request );
+		if ( $record instanceof \WP_REST_Response ) {
+			return $record;
+		}
+		if ( Staging::STATUS_PLANNED !== $record['status'] ) {
+			return self::error( 'session_closed', 'This session no longer accepts files.', 409 );
+		}
+
+		$sha1 = (string) $request['sha1'];
+		if ( ! isset( $record['files'][ $sha1 ] ) ) {
+			return self::error( 'unknown_file', 'That file is not part of this session.', 404 );
+		}
+
+		$offset = (string) $request->get_param( 'offset' );
+		if ( 1 !== preg_match( '/^\d{1,15}$/', $offset ) ) {
+			return self::error( 'invalid_offset', 'The offset must be a non-negative integer.', 400 );
+		}
+
+		$bytes = (string) $request->get_body();
+		if ( strlen( $bytes ) > self::max_chunk_bytes() ) {
+			return self::error( 'chunk_too_large', sprintf( 'Chunks may be at most %d bytes.', self::max_chunk_bytes() ), 413 );
+		}
+
+		$expected = (int) $record['files'][ $sha1 ];
+		try {
+			$result = $this->staging->write_chunk( (string) $record['id'], $sha1, (int) $offset, $bytes, $expected );
+		} catch ( Staging_Exception $e ) {
+			return self::error( 'storage_error', $e->getMessage(), 500 );
+		}
+
+		$data = array(
+			'sha1'     => $sha1,
+			'bytes'    => $expected,
+			'received' => $result['received'],
+			'complete' => 'complete' === $result['status'],
+		);
+
+		switch ( $result['status'] ) {
+			case 'offset':
+				return self::error( 'offset_mismatch', 'The offset does not match the bytes received; continue from data.received.', 409, $data );
+			case 'too-large':
+				return self::error( 'file_too_large', 'The chunk would make the file larger than the manifest says.', 413, $data );
+			case 'mismatch':
+				return self::error( 'hash_mismatch', 'The uploaded file does not match its SHA-1 and was discarded; upload it again from offset 0.', 422, $data );
+			default:
+				return self::ok( $data['complete'] ? 'file_complete' : 'chunk_stored', $data['complete'] ? 'File received and verified.' : 'Chunk stored.', $data );
+		}
+	}
 }
