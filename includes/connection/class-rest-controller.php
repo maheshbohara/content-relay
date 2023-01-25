@@ -776,4 +776,44 @@ final class Rest_Controller {
 
 		return new \WP_Error( 'content_relay_unauthorized', 'The request could not be authenticated.', array( 'status' => 401 ) );
 	}
+
+	/**
+	 * Success response.
+	 *
+	 * @param string               $code    Code.
+	 * @param string               $message Message.
+	 * @param array<string, mixed> $data    Data.
+	 * @param int                  $status  HTTP status.
+	 */
+	private static function ok( string $code, string $message, array $data, int $status = 200 ): \WP_REST_Response {
+		return new \WP_REST_Response(
+			array(
+				'ok'      => true,
+				'code'    => $code,
+				'message' => $message,
+				'data'    => $data,
+			),
+			$status
+		);
+	}
+
+	/**
+	 * Error response.
+	 *
+	 * @param string               $code    Code.
+	 * @param string               $message Message.
+	 * @param int                  $status  HTTP status.
+	 * @param array<string, mixed> $data    Data.
+	 */
+	private static function error( string $code, string $message, int $status, array $data = array() ): \WP_REST_Response {
+		return new \WP_REST_Response(
+			array(
+				'ok'      => false,
+				'code'    => $code,
+				'message' => $message,
+				'data'    => $data,
+			),
+			$status
+		);
+	}
 }
