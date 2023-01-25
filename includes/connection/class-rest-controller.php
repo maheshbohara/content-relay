@@ -737,4 +737,43 @@ final class Rest_Controller {
 
 		return $result;
 	}
+
+	/**
+	 * Strips filesystem locations from an engine message.
+	 *
+	 * @param string $message Message.
+	 */
+	private function public_message( string $message ): string {
+		$uploads = wp_get_upload_dir();
+
+		return str_replace( array( untrailingslashit( (string) $uploads['basedir'] ), untrailingslashit( ABSPATH ) ), array( 'uploads', '' ), $message );
+	}
+
+	/**
+	 * Refuses a request with a generic 401, counts the failure and reports it.
+	 *
+	 * @param string $ip     Client IP.
+	 * @param string $reason Internal reason (never sent).
+	 * @param string $kid    Claimed key id.
+	 */
+	private function deny( string $ip, string $reason, string $kid ): \WP_Error {
+		$failures = 'content_relay_fail_' . md5( $ip );
+		set_transient( $failures, (int) get_transient( $failures ) + 1, MINUTE_IN_SECONDS );
+
+		/**
+		 * Fires when a relay request is refused.
+		 *
+		 * @param string $reason `ip`, `headers`, `query`, `kid`, `skew`, `signature`, `replay` or `issuer`.
+		 * @param string $ip     Client IP.
+		 * @param string $kid    Claimed key id (unverified).
+		 */
+		do_action( 'content_relay_request_denied', $reason, $ip, $kid );
+
+		if ( defined( 'WP_DEBUG_LOG' ) && WP_DEBUG_LOG ) {
+			// phpcs:ignore WordPress.PHP.DevelopmentFunctions.error_log_error_log -- Refused requests are logged for the site owner (spec §5.3) only when the debug log is on.
+			error_log( sprintf( 'Content Relay: refused request from %1$s (%2$s, kid %3$s).', $ip, $reason, '' === $kid ? '-' : $kid ) );
+		}
+
+		return new \WP_Error( 'content_relay_unauthorized', 'The request could not be authenticated.', array( 'status' => 401 ) );
+	}
 }
