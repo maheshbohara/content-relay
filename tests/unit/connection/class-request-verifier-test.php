@@ -129,4 +129,122 @@ final class Request_Verifier_Test extends TestCase {
 		$array_query = array_merge( $request, array( 'query' => array( 'offset' => array( '1' ) ) ) );
 		$this->assertSame( 'query', $this->verify( $array_query )['reason'] );
 	}
+
+	/**
+	 * Builds a signed request.
+	 *
+	 * @param string                $method    Method.
+	 * @param array<string, string> $query     Query.
+	 * @param string                $body      Body.
+	 * @param int                   $timestamp Timestamp.
+	 * @return array{method: string, route: string, query: array<string, mixed>, headers: array<string, string>, body: string}
+	 */
+	private function signed( string $method, array $query, string $body, int $timestamp ): array {
+		$signer = new Signer();
+		$nonce  = Base64_Url::encode( random_bytes( 32 ) );
+
+		return array(
+			'method'  => $method,
+			'route'   => self::ROUTE,
+			'query'   => $query,
+			'headers' => array(
+				Request_Verifier::HEADER_KID       => self::KID,
+				Request_Verifier::HEADER_TIMESTAMP => (string) $timestamp,
+				Request_Verifier::HEADER_NONCE     => $nonce,
+				Request_Verifier::HEADER_SIGNATURE => $signer->sign( $signer->canonical( $method, self::ROUTE, $query, $timestamp, $nonce, $body ), $this->pair['secret_key'] ),
+			),
+			'body'    => $body,
+		);
+	}
+
+	/**
+	 * Verifies a request against the test stores.
+	 *
+	 * @param array{method: string, route: string, query: array<string, mixed>, headers: array<string, string>, body: string} $request Request.
+	 * @return array{ok: bool, reason: string, kid: string}
+	 */
+	private function verify( array $request ): array {
+		$test = $this;
+
+		$keys = new class( $test ) implements Key_Store {
+			/**
+			 * Test case.
+			 *
+			 * @var Request_Verifier_Test
+			 */
+			private Request_Verifier_Test $test;
+
+			/**
+			 * Constructor.
+			 *
+			 * @param Request_Verifier_Test $test Test case.
+			 */
+			public function __construct( Request_Verifier_Test $test ) {
+				$this->test = $test;
+			}
+
+			/**
+			 * Public key lookup.
+			 *
+			 * @param string $kid Key id.
+			 */
+			public function public_key_for( string $kid ): ?string {
+				return $this->test->key( $kid );
+			}
+		};
+
+		$replay = new class( $test ) implements Replay_Guard {
+			/**
+			 * Test case.
+			 *
+			 * @var Request_Verifier_Test
+			 */
+			private Request_Verifier_Test $test;
+
+			/**
+			 * Constructor.
+			 *
+			 * @param Request_Verifier_Test $test Test case.
+			 */
+			public function __construct( Request_Verifier_Test $test ) {
+				$this->test = $test;
+			}
+
+			/**
+			 * Nonce store.
+			 *
+			 * @param string $kid     Key id.
+			 * @param string $nonce   Nonce.
+			 * @param int    $seconds Seconds.
+			 */
+			public function remember( string $kid, string $nonce, int $seconds ): bool {
+				return $this->test->remember( $kid . '|' . $nonce );
+			}
+		};
+
+		return ( new Request_Verifier( new Signer(), $keys, $replay ) )->verify( $request['method'], $request['route'], $request['query'], $request['headers'], $request['body'], self::NOW );
+	}
+
+	/**
+	 * Test key store.
+	 *
+	 * @param string $kid Key id.
+	 */
+	public function key( string $kid ): ?string {
+		return $this->keys[ $kid ] ?? null;
+	}
+
+	/**
+	 * Test replay store.
+	 *
+	 * @param string $id Kid + nonce.
+	 */
+	public function remember( string $id ): bool {
+		if ( isset( $this->seen[ $id ] ) ) {
+			return false;
+		}
+		$this->seen[ $id ] = true;
+
+		return true;
+	}
 }
