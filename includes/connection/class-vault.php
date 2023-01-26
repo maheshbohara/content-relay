@@ -79,4 +79,37 @@ final class Vault {
 
 		return new self( $auth . $secure );
 	}
+
+	/**
+	 * Encrypts a secret.
+	 *
+	 * @param string $plain Secret.
+	 * @return string base64url ciphertext (nonce + box).
+	 */
+	public function encrypt( string $plain ): string {
+		$nonce = random_bytes( self::NONCE_BYTES );
+
+		return Base64_Url::encode( $nonce . sodium_crypto_secretbox( $plain, $nonce, $this->key ) );
+	}
+
+	/**
+	 * Decrypts a secret.
+	 *
+	 * @param string $cipher Result of encrypt().
+	 * @return string|null Null when the ciphertext is malformed or was encrypted with other key material.
+	 */
+	public function decrypt( string $cipher ): ?string {
+		$raw = Base64_Url::decode( $cipher );
+		if ( null === $raw || strlen( $raw ) < self::NONCE_BYTES + self::MAC_BYTES ) {
+			return null;
+		}
+
+		try {
+			$plain = sodium_crypto_secretbox_open( substr( $raw, self::NONCE_BYTES ), substr( $raw, 0, self::NONCE_BYTES ), $this->key );
+		} catch ( \SodiumException $e ) {
+			return null;
+		}
+
+		return false === $plain ? null : $plain;
+	}
 }
