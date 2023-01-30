@@ -92,4 +92,63 @@ final class Log_Table {
 
 		update_option( self::VERSION_OPTION, self::DB_VERSION, false );
 	}
+
+	/**
+	 * Installs the table when this site runs an older schema (activation hooks do not run on plugin updates).
+	 */
+	public static function maybe_upgrade(): void {
+		if ( (int) get_option( self::VERSION_OPTION, 0 ) < self::DB_VERSION ) {
+			self::install();
+		}
+	}
+
+	/**
+	 * Adds a row.
+	 *
+	 * @param array<string, mixed> $row Columns.
+	 * @return int Row id.
+	 */
+	public function insert( array $row ): int {
+		global $wpdb;
+
+		$now  = gmdate( 'Y-m-d H:i:s' );
+		$data = $this->encode(
+			array_merge(
+				array(
+					'root_title' => '',
+					'created_at' => $now,
+					'updated_at' => $now,
+				),
+				$row
+			)
+		);
+
+		// phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery -- The plugin's own table.
+		$wpdb->insert( self::table(), $data );
+
+		return (int) $wpdb->insert_id;
+	}
+
+	/**
+	 * Updates the row of a session.
+	 *
+	 * @param string               $session   Session id.
+	 * @param string               $direction `out` or `in`.
+	 * @param array<string, mixed> $changes   Columns.
+	 */
+	public function update( string $session, string $direction, array $changes ): void {
+		global $wpdb;
+
+		$changes['updated_at'] = gmdate( 'Y-m-d H:i:s' );
+
+		// phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery,WordPress.DB.DirectDatabaseQuery.NoCaching -- The plugin's own table.
+		$wpdb->update(
+			self::table(),
+			$this->encode( $changes ),
+			array(
+				'session'   => $session,
+				'direction' => $direction,
+			)
+		);
+	}
 }
