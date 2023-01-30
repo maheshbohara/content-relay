@@ -204,4 +204,51 @@ final class Log_Table {
 
 		return is_array( $rows ) ? $rows : array();
 	}
+
+	/**
+	 * Number of rows.
+	 *
+	 * @param string|null $direction `out`, `in`, or null for both.
+	 */
+	public function count( ?string $direction ): int {
+		global $wpdb;
+
+		if ( null === $direction ) {
+			// phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery,WordPress.DB.DirectDatabaseQuery.NoCaching -- The plugin's own table.
+			return (int) $wpdb->get_var( $wpdb->prepare( 'SELECT COUNT(*) FROM %i', self::table() ) );
+		}
+
+		// phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery,WordPress.DB.DirectDatabaseQuery.NoCaching -- The plugin's own table.
+		return (int) $wpdb->get_var( $wpdb->prepare( 'SELECT COUNT(*) FROM %i WHERE direction = %s', self::table(), $direction ) );
+	}
+
+	/**
+	 * JSON-encodes the array columns.
+	 *
+	 * @param array<string, mixed> $row Columns.
+	 * @return array<string, mixed>
+	 */
+	private function encode( array $row ): array {
+		foreach ( self::JSON_COLUMNS as $column ) {
+			if ( array_key_exists( $column, $row ) && ! is_string( $row[ $column ] ) && null !== $row[ $column ] ) {
+				$row[ $column ] = (string) wp_json_encode( $row[ $column ], JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE );
+			}
+		}
+
+		return $row;
+	}
+
+	/**
+	 * Decodes the JSON columns.
+	 *
+	 * @param array<string, mixed> $row Row.
+	 * @return array<string, mixed>
+	 */
+	private function decode( array $row ): array {
+		foreach ( self::JSON_COLUMNS as $column ) {
+			$row[ $column ] = is_string( $row[ $column ] ?? null ) ? json_decode( $row[ $column ], true ) : null;
+		}
+
+		return $row;
+	}
 }
