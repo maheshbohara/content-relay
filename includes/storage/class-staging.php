@@ -89,4 +89,57 @@ final class Staging {
 		$this->put( $dir . '/manifest.json', (string) wp_json_encode( $manifest, JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE ) );
 		$this->write_record( $id, $record );
 	}
+
+	/**
+	 * Reads a session record.
+	 *
+	 * @param string $id Session id.
+	 * @return array<string, mixed>|null Null when the session does not exist.
+	 */
+	public function read( string $id ): ?array {
+		if ( ! Uuid::is_valid( $id ) ) {
+			return null;
+		}
+
+		$data = $this->read_json( $this->dir( $id ) . '/session.json' );
+
+		return is_array( $data ) ? $data : null;
+	}
+
+	/**
+	 * Merges fields into a session record and bumps its activity time.
+	 *
+	 * @param string               $id      Session id.
+	 * @param array<string, mixed> $changes Fields to add or replace.
+	 * @return array<string, mixed> Updated record.
+	 *
+	 * @throws Staging_Exception When the session does not exist or cannot be written.
+	 */
+	public function update( string $id, array $changes ): array {
+		$record = $this->read( $id );
+		if ( null === $record ) {
+			throw new Staging_Exception( 'Session does not exist.' );
+		}
+
+		$record = array_merge( $record, $changes );
+		$this->write_record( $id, $record );
+
+		return $record;
+	}
+
+	/**
+	 * Manifest of a session.
+	 *
+	 * @param string $id Session id.
+	 * @return array<string, mixed>|null Null once the session's files were removed.
+	 */
+	public function manifest( string $id ): ?array {
+		if ( ! Uuid::is_valid( $id ) ) {
+			return null;
+		}
+
+		$data = $this->read_json( $this->dir( $id ) . '/manifest.json' );
+
+		return is_array( $data ) ? $data : null;
+	}
 }
