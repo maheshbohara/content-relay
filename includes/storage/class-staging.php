@@ -243,4 +243,71 @@ final class Staging {
 			fclose( $handle );
 		}
 	}
+
+	/**
+	 * Removes a session's manifest and files but keeps its record (applied sessions stay addressable for rollback).
+	 *
+	 * @param string $id Session id.
+	 */
+	public function remove_files( string $id ): void {
+		if ( ! Uuid::is_valid( $id ) ) {
+			return;
+		}
+
+		$this->remove_tree( $this->files_dir( $id ) );
+		if ( file_exists( $this->dir( $id ) . '/manifest.json' ) ) {
+			wp_delete_file( $this->dir( $id ) . '/manifest.json' );
+		}
+	}
+
+	/**
+	 * Deletes a session completely.
+	 *
+	 * @param string $id Session id.
+	 */
+	public function delete( string $id ): void {
+		if ( Uuid::is_valid( $id ) ) {
+			$this->remove_tree( $this->dir( $id ) );
+		}
+	}
+
+	/**
+	 * Removes expired sessions: unapplied ones entirely, applied ones down to their record.
+	 *
+	 * @param int $now Unix time.
+	 * @param int $ttl Seconds of inactivity before a session expires.
+	 * @return int Sessions touched.
+	 */
+	public function purge( int $now, int $ttl ): int {
+		if ( ! is_dir( $this->root ) ) {
+			return 0;
+		}
+
+		$count = 0;
+		foreach ( (array) scandir( $this->root ) as $name ) {
+			$name = (string) $name;
+			if ( ! Uuid::is_valid( $name ) ) {
+				continue;
+			}
+
+			$record  = $this->read( $name );
+			$updated = (int) ( $record['updated'] ?? 0 );
+			if ( null !== $record && $updated > $now - $ttl ) {
+				continue;
+			}
+
+			$status = (string) ( $record['status'] ?? '' );
+			if ( in_array( $status, array( self::STATUS_APPLIED, self::STATUS_ROLLED_BACK ), true ) ) {
+				if ( is_dir( $this->files_dir( $name ) ) ) {
+					$this->remove_files( $name );
+					++$count;
+				}
+			} elseif ( self::STATUS_APPLYING !== $status ) {
+				$this->delete( $name );
+				++$count;
+			}
+		}
+
+		return $count;
+	}
 }
