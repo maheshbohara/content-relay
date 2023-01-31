@@ -310,4 +310,58 @@ final class Staging {
 
 		return $count;
 	}
+
+	/**
+	 * Directory of a session.
+	 *
+	 * @param string $id Session id.
+	 */
+	private function dir( string $id ): string {
+		return $this->root . '/' . $id;
+	}
+
+	/**
+	 * Writes a session record with its activity time.
+	 *
+	 * @param string               $id     Session id.
+	 * @param array<string, mixed> $record Record.
+	 *
+	 * @throws Staging_Exception When writing fails.
+	 */
+	private function write_record( string $id, array $record ): void {
+		$record['updated'] = time();
+		$this->put( $this->dir( $id ) . '/session.json', (string) wp_json_encode( $record, JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE ) );
+	}
+
+	/**
+	 * Writes a file.
+	 *
+	 * @param string $path     Path.
+	 * @param string $contents Contents.
+	 *
+	 * @throws Staging_Exception When writing fails.
+	 */
+	private function put( string $path, string $contents ): void {
+		// phpcs:ignore WordPress.WP.AlternativeFunctions.file_system_operations_file_put_contents -- Writes inside uploads during a REST request; WP_Filesystem may require credentials that the request cannot supply.
+		if ( false === file_put_contents( $path, $contents, LOCK_EX ) ) {
+			throw new Staging_Exception( 'Cannot write to the staging directory.' );
+		}
+	}
+
+	/**
+	 * Reads and decodes a JSON file.
+	 *
+	 * @param string $path Path.
+	 * @return mixed Null when missing or invalid.
+	 */
+	private function read_json( string $path ) {
+		if ( ! is_readable( $path ) ) {
+			return null;
+		}
+
+		// phpcs:ignore WordPress.WP.AlternativeFunctions.file_get_contents_file_get_contents -- Local file inside the staging directory.
+		$raw = file_get_contents( $path );
+
+		return false === $raw ? null : json_decode( $raw, true );
+	}
 }
