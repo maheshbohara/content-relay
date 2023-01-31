@@ -142,4 +142,105 @@ final class Staging {
 
 		return is_array( $data ) ? $data : null;
 	}
+
+	/**
+	 * Directory holding a session's verified files.
+	 *
+	 * @param string $id Session id.
+	 */
+	public function files_dir( string $id ): string {
+		return $this->dir( $id ) . '/files';
+	}
+
+	/**
+	 * Bytes received so far for a file.
+	 *
+	 * @param string $id   Session id.
+	 * @param string $sha1 File SHA-1.
+	 */
+	public function received( string $id, string $sha1 ): int {
+		$path = $this->files_dir( $id ) . '/' . $sha1;
+		clearstatcache( true, $path );
+		clearstatcache( true, $path . '.part' );
+		if ( file_exists( $path ) ) {
+			return (int) filesize( $path );
+		}
+
+		return file_exists( $path . '.part' ) ? (int) filesize( $path . '.part' ) : 0;
+	}
+
+	/**
+	 * Appends a chunk to a file.
+	 *
+	 * The chunk is accepted only at the end of what was already received, so a retried or duplicated chunk can never
+	 * corrupt the file; the caller learns the real offset and continues from there.
+	 *
+	 * @param string $id       Session id.
+	 * @param string $sha1     Expected SHA-1 of the whole file.
+	 * @param int    $offset   Offset of this chunk.
+	 * @param string $bytes    Chunk.
+	 * @param int    $expected Size of the whole file in bytes.
+	 * @return array{status: string, received: int} Status: `partial`, `complete`, `offset`, `too-large` or `mismatch`.
+	 *
+	 * @throws Staging_Exception When the file cannot be opened or written.
+	 */
+	public function write_chunk( string $id, string $sha1, int $offset, string $bytes, int $expected ): array {
+		if ( 1 !== preg_match( '/^[a-f0-9]{40}$/', $sha1 ) || ! is_dir( $this->files_dir( $id ) ) ) {
+			throw new Staging_Exception( 'Unknown session file.' );
+		}
+
+		$final = $this->files_dir( $id ) . '/' . $sha1;
+		clearstatcache( true, $final );
+		if ( file_exists( $final ) ) {
+			return self::chunk_result( 'complete', (int) filesize( $final ) );
+		}
+
+		$part = $final . '.part';
+		// phpcs:ignore WordPress.WP.AlternativeFunctions.file_system_operations_fopen -- Appending under an exclusive lock needs a handle; WP_Filesystem has no locking.
+		$handle = fopen( $part, 'c+' );
+		if ( false === $handle ) {
+			throw new Staging_Exception( 'Cannot open the staging file.' );
+		}
+
+		try {
+			flock( $handle, LOCK_EX );
+			$stat = fstat( $handle );
+			$size = false === $stat ? 0 : (int) $stat['size'];
+
+			if ( $offset !== $size ) {
+				return self::chunk_result( 'offset', $size );
+			}
+			if ( $size + strlen( $bytes ) > $expected ) {
+				return self::chunk_result( 'too-large', $size );
+			}
+
+			fseek( $handle, $size );
+			// phpcs:ignore WordPress.WP.AlternativeFunctions.file_system_operations_fwrite -- See fopen() above.
+			if ( '' !== $bytes && strlen( $bytes ) !== fwrite( $handle, $bytes ) ) {
+				throw new Staging_Exception( 'Cannot write the staging file.' );
+			}
+			fflush( $handle );
+			$size += strlen( $bytes );
+
+			if ( $size < $expected ) {
+				return self::chunk_result( 'partial', $size );
+			}
+
+			if ( sha1_file( $part ) !== $sha1 ) {
+				wp_delete_file( $part );
+				return self::chunk_result( 'mismatch', 0 );
+			}
+
+			// phpcs:ignore WordPress.WP.AlternativeFunctions.rename_rename -- Atomic move inside the protected staging directory.
+			if ( ! rename( $part, $final ) ) {
+				throw new Staging_Exception( 'Cannot complete the staging file.' );
+			}
+
+			return self::chunk_result( 'complete', $size );
+		} finally {
+			flock( $handle, LOCK_UN );
+			// phpcs:ignore WordPress.WP.AlternativeFunctions.file_system_operations_fclose -- See fopen() above.
+			fclose( $handle );
+		}
+	}
 }
