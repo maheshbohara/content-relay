@@ -364,4 +364,45 @@ final class Staging {
 
 		return false === $raw ? null : json_decode( $raw, true );
 	}
+
+	/**
+	 * Deletes a directory tree inside the staging root.
+	 *
+	 * @param string $dir Directory.
+	 */
+	private function remove_tree( string $dir ): void {
+		if ( 0 !== strpos( $dir, $this->root . '/' ) || ! is_dir( $dir ) ) {
+			return;
+		}
+
+		foreach ( (array) scandir( $dir ) as $name ) {
+			$name = (string) $name;
+			if ( '.' === $name || '..' === $name ) {
+				continue;
+			}
+			$path = $dir . '/' . $name;
+			if ( is_dir( $path ) && ! is_link( $path ) ) {
+				$this->remove_tree( $path );
+			} else {
+				wp_delete_file( $path );
+			}
+		}
+
+		// phpcs:ignore WordPress.WP.AlternativeFunctions.file_system_operations_rmdir -- Removes an emptied staging directory; see put().
+		rmdir( $dir );
+	}
+
+	/**
+	 * Builds a chunk result.
+	 *
+	 * @param string $status   Status.
+	 * @param int    $received Bytes received.
+	 * @return array{status: string, received: int}
+	 */
+	private static function chunk_result( string $status, int $received ): array {
+		return array(
+			'status'   => $status,
+			'received' => $received,
+		);
+	}
 }
