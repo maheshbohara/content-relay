@@ -118,4 +118,37 @@ interface Adapter {
 	 * @param string|null $language Language code.
 	 */
 	public function switch_to( ?string $language ): void;
+
+	/**
+	 * Restores the language active before the last switch_to().
+	 */
+	public function restore(): void;
+
+	/**
+	 * Clears the plugin's caches after direct database writes.
+	 */
+	public function flush_caches(): void;
+
+	/**
+	 * A post's stored language data, for backups.
+	 *
+	 * @param int $post_id Post id.
+	 * @return array<string, mixed>|null Null when the post has no language data.
+	 */
+	public function export_post_state( int $post_id ): ?array;
+
+	/**
+	 * Restores a post's language data from a backup; null removes it.
+	 *
+	 * @param int                       $post_id Post id.
+	 * @param array<string, mixed>|null $state   Result of export_post_state().
+	 */
+	public function import_post_state( int $post_id, ?array $state ): void;
+
+	/**
+	 * Removes a post's language data (before deleting a post the relay created).
+	 *
+	 * @param int $post_id Post id.
+	 */
+	public function unlink_post( int $post_id ): void;
 }
