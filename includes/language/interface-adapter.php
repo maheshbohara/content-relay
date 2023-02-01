@@ -77,4 +77,45 @@ interface Adapter {
 	 * @return array<string, int> Language code => term id.
 	 */
 	public function term_translations( int $term_id, string $taxonomy ): array;
+
+	/**
+	 * Language the post was translated from, or null when it is the original.
+	 *
+	 * @param int $post_id Post id.
+	 */
+	public function post_source_language( int $post_id ): ?string;
+
+	/**
+	 * Language the term was translated from, or null when it is the original.
+	 *
+	 * @param int    $term_id  Term id.
+	 * @param string $taxonomy Taxonomy.
+	 */
+	public function term_source_language( int $term_id, string $taxonomy ): ?string;
+
+	/**
+	 * Assigns a post's language and links it to the translation group of an original.
+	 *
+	 * @param int      $post_id          Post id.
+	 * @param string   $language         Language code.
+	 * @param int|null $original_post_id Original post on this site, or null when the post is the original.
+	 */
+	public function link_post( int $post_id, string $language, ?int $original_post_id ): void;
+
+	/**
+	 * Assigns a term's language and links it to the translation group of an original.
+	 *
+	 * @param int      $term_id          Term id.
+	 * @param string   $taxonomy         Taxonomy.
+	 * @param string   $language         Language code.
+	 * @param int|null $original_term_id Original term on this site, or null when the term is the original.
+	 */
+	public function link_term( int $term_id, string $taxonomy, string $language, ?int $original_term_id ): void;
+
+	/**
+	 * Switches the current language (permalinks, queries, term inserts). Null switches to all languages.
+	 *
+	 * @param string|null $language Language code.
+	 */
+	public function switch_to( ?string $language ): void;
 }
