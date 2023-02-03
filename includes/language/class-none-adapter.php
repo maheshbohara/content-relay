@@ -130,4 +130,50 @@ final class None_Adapter implements Adapter {
 	 */
 	public function link_term( int $term_id, string $taxonomy, string $language, ?int $original_term_id ): void {
 	}
+
+	/**
+	 * {@inheritDoc}
+	 *
+	 * @param string|null $language Language code.
+	 */
+	public function switch_to( ?string $language ): void {
+	}
+
+	/**
+	 * {@inheritDoc}
+	 */
+	public function restore(): void {
+	}
+
+	/**
+	 * {@inheritDoc}
+	 */
+	public function flush_caches(): void {
+	}
+
+	/**
+	 * {@inheritDoc}
+	 *
+	 * @param int $post_id Post id.
+	 */
+	public function export_post_state( int $post_id ): ?array {
+		return null;
+	}
+
+	/**
+	 * {@inheritDoc}
+	 *
+	 * @param int                       $post_id Post id.
+	 * @param array<string, mixed>|null $state   State.
+	 */
+	public function import_post_state( int $post_id, ?array $state ): void {
+	}
+
+	/**
+	 * {@inheritDoc}
+	 *
+	 * @param int $post_id Post id.
+	 */
+	public function unlink_post( int $post_id ): void {
+	}
 }
