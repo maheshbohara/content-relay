@@ -90,4 +90,44 @@ final class None_Adapter implements Adapter {
 	public function term_translations( int $term_id, string $taxonomy ): array {
 		return array();
 	}
+
+	/**
+	 * {@inheritDoc}
+	 *
+	 * @param int $post_id Post id.
+	 */
+	public function post_source_language( int $post_id ): ?string {
+		return null;
+	}
+
+	/**
+	 * {@inheritDoc}
+	 *
+	 * @param int    $term_id  Term id.
+	 * @param string $taxonomy Taxonomy.
+	 */
+	public function term_source_language( int $term_id, string $taxonomy ): ?string {
+		return null;
+	}
+
+	/**
+	 * {@inheritDoc}
+	 *
+	 * @param int      $post_id          Post id.
+	 * @param string   $language         Language code.
+	 * @param int|null $original_post_id Original post id.
+	 */
+	public function link_post( int $post_id, string $language, ?int $original_post_id ): void {
+	}
+
+	/**
+	 * {@inheritDoc}
+	 *
+	 * @param int      $term_id          Term id.
+	 * @param string   $taxonomy         Taxonomy.
+	 * @param string   $language         Language code.
+	 * @param int|null $original_term_id Original term id.
+	 */
+	public function link_term( int $term_id, string $taxonomy, string $language, ?int $original_term_id ): void {
+	}
 }
