@@ -37,4 +37,51 @@ final class Wpml_Adapter implements Adapter {
 	public function id(): string {
 		return 'wpml';
 	}
+
+	/**
+	 * {@inheritDoc}
+	 */
+	public function default_language(): ?string {
+		$language = apply_filters( 'wpml_default_language', null ); // phpcs:ignore WordPress.NamingConventions.PrefixAllGlobals.NonPrefixedHooknameFound -- WPML's public API hook.
+
+		return is_string( $language ) && '' !== $language ? $language : null;
+	}
+
+	/**
+	 * {@inheritDoc}
+	 */
+	public function active_languages(): array {
+		$languages = apply_filters( 'wpml_active_languages', null, array( 'skip_missing' => 0 ) ); // phpcs:ignore WordPress.NamingConventions.PrefixAllGlobals.NonPrefixedHooknameFound -- WPML's public API hook.
+
+		return is_array( $languages ) ? array_map( 'strval', array_keys( $languages ) ) : array();
+	}
+
+	/**
+	 * {@inheritDoc}
+	 *
+	 * @param string $post_type Post type.
+	 */
+	public function is_translatable_post_type( string $post_type ): bool {
+		return (bool) apply_filters( 'wpml_is_translated_post_type', null, $post_type ); // phpcs:ignore WordPress.NamingConventions.PrefixAllGlobals.NonPrefixedHooknameFound -- WPML's public API hook.
+	}
+
+	/**
+	 * {@inheritDoc}
+	 *
+	 * @param string $taxonomy Taxonomy.
+	 */
+	public function is_translatable_taxonomy( string $taxonomy ): bool {
+		return (bool) apply_filters( 'wpml_is_translated_taxonomy', null, $taxonomy ); // phpcs:ignore WordPress.NamingConventions.PrefixAllGlobals.NonPrefixedHooknameFound -- WPML's public API hook.
+	}
+
+	/**
+	 * {@inheritDoc}
+	 *
+	 * @param int $post_id Post id.
+	 */
+	public function post_language( int $post_id ): ?string {
+		$row = $this->row( $post_id, $this->post_element_type( $post_id ) );
+
+		return null === $row ? null : $row['language_code'];
+	}
 }
