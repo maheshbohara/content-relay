@@ -84,4 +84,49 @@ final class Wpml_Adapter implements Adapter {
 
 		return null === $row ? null : $row['language_code'];
 	}
+
+	/**
+	 * {@inheritDoc}
+	 *
+	 * @param int    $term_id  Term id.
+	 * @param string $taxonomy Taxonomy.
+	 */
+	public function term_language( int $term_id, string $taxonomy ): ?string {
+		$tt_id = $this->term_taxonomy_id( $term_id, $taxonomy );
+		$row   = null === $tt_id ? null : $this->row( $tt_id, 'tax_' . $taxonomy );
+
+		return null === $row ? null : $row['language_code'];
+	}
+
+	/**
+	 * {@inheritDoc}
+	 *
+	 * @param int $post_id Post id.
+	 */
+	public function post_translations( int $post_id ): array {
+		return $this->group( $post_id, $this->post_element_type( $post_id ) );
+	}
+
+	/**
+	 * {@inheritDoc}
+	 *
+	 * @param int    $term_id  Term id.
+	 * @param string $taxonomy Taxonomy.
+	 */
+	public function term_translations( int $term_id, string $taxonomy ): array {
+		$tt_id = $this->term_taxonomy_id( $term_id, $taxonomy );
+		if ( null === $tt_id ) {
+			return array();
+		}
+
+		$terms = array();
+		foreach ( $this->group( $tt_id, 'tax_' . $taxonomy ) as $language => $translated_tt_id ) {
+			$term = get_term_by( 'term_taxonomy_id', $translated_tt_id, $taxonomy );
+			if ( $term instanceof \WP_Term ) {
+				$terms[ $language ] = (int) $term->term_id;
+			}
+		}
+
+		return $terms;
+	}
 }
