@@ -129,4 +129,53 @@ final class Wpml_Adapter implements Adapter {
 
 		return $terms;
 	}
+
+	/**
+	 * {@inheritDoc}
+	 *
+	 * @param int $post_id Post id.
+	 */
+	public function post_source_language( int $post_id ): ?string {
+		$row = $this->row( $post_id, $this->post_element_type( $post_id ) );
+
+		return null === $row ? null : $row['source_language_code'];
+	}
+
+	/**
+	 * {@inheritDoc}
+	 *
+	 * @param int    $term_id  Term id.
+	 * @param string $taxonomy Taxonomy.
+	 */
+	public function term_source_language( int $term_id, string $taxonomy ): ?string {
+		$tt_id = $this->term_taxonomy_id( $term_id, $taxonomy );
+		$row   = null === $tt_id ? null : $this->row( $tt_id, 'tax_' . $taxonomy );
+
+		return null === $row ? null : $row['source_language_code'];
+	}
+
+	/**
+	 * {@inheritDoc}
+	 *
+	 * An original (no `$original_post_id`) that already belongs to a translation group in the same language keeps that
+	 * group. Passing `trid => null` to WPML starts a new group, which would split an updated original from translations
+	 * this relay left untouched (scenario 10: EN `update`, FR `unchanged`).
+	 *
+	 * @param int      $post_id          Post id.
+	 * @param string   $language         Language code.
+	 * @param int|null $original_post_id Original post id.
+	 */
+	public function link_post( int $post_id, string $language, ?int $original_post_id ): void {
+		$type = $this->post_element_type( $post_id );
+		if ( '' === $type ) {
+			return;
+		}
+
+		$group = null === $original_post_id ? $this->row( $post_id, $type ) : $this->row( $original_post_id, $type );
+		if ( null === $original_post_id && null !== $group && $group['language_code'] !== $language ) {
+			$group = null;
+		}
+
+		$this->set_details( $post_id, $type, $language, $group );
+	}
 }
