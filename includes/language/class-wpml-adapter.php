@@ -221,4 +221,69 @@ final class Wpml_Adapter implements Adapter {
 
 		do_action( 'wpml_switch_language', array_pop( $this->language_stack ) ); // phpcs:ignore WordPress.NamingConventions.PrefixAllGlobals.NonPrefixedHooknameFound -- WPML's public API hook.
 	}
+
+	/**
+	 * {@inheritDoc}
+	 */
+	public function flush_caches(): void {
+		do_action( 'wpml_cache_clear' ); // phpcs:ignore WordPress.NamingConventions.PrefixAllGlobals.NonPrefixedHooknameFound -- WPML's public API hook.
+		if ( function_exists( 'icl_cache_clear' ) ) {
+			icl_cache_clear();
+		}
+	}
+
+	/**
+	 * {@inheritDoc}
+	 *
+	 * @param int $post_id Post id.
+	 */
+	public function export_post_state( int $post_id ): ?array {
+		return $this->row( $post_id, $this->post_element_type( $post_id ) );
+	}
+
+	/**
+	 * {@inheritDoc}
+	 *
+	 * @param int                       $post_id Post id.
+	 * @param array<string, mixed>|null $state   State.
+	 */
+	public function import_post_state( int $post_id, ?array $state ): void {
+		global $wpdb;
+
+		$type = $this->post_element_type( $post_id );
+		if ( '' === $type ) {
+			return;
+		}
+		if ( null === $state ) {
+			$this->unlink_post( $post_id );
+			return;
+		}
+
+		$data = array(
+			'trid'                 => (int) $state['trid'],
+			'language_code'        => (string) $state['language_code'],
+			'source_language_code' => $state['source_language_code'],
+		);
+
+		// phpcs:disable WordPress.DB.DirectDatabaseQuery.DirectQuery,WordPress.DB.DirectDatabaseQuery.NoCaching -- Restores a backed-up icl_translations row exactly.
+		if ( null === $this->row( $post_id, $type ) ) {
+			$wpdb->insert(
+				$wpdb->prefix . 'icl_translations',
+				$data + array(
+					'element_id'   => $post_id,
+					'element_type' => $type,
+				)
+			);
+		} else {
+			$wpdb->update(
+				$wpdb->prefix . 'icl_translations',
+				$data,
+				array(
+					'element_id'   => $post_id,
+					'element_type' => $type,
+				)
+			);
+		}
+		// phpcs:enable
+	}
 }
