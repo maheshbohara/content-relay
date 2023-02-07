@@ -178,4 +178,47 @@ final class Wpml_Adapter implements Adapter {
 
 		$this->set_details( $post_id, $type, $language, $group );
 	}
+
+	/**
+	 * {@inheritDoc}
+	 *
+	 * @param int      $term_id          Term id.
+	 * @param string   $taxonomy         Taxonomy.
+	 * @param string   $language         Language code.
+	 * @param int|null $original_term_id Original term id.
+	 */
+	public function link_term( int $term_id, string $taxonomy, string $language, ?int $original_term_id ): void {
+		$tt_id = $this->term_taxonomy_id( $term_id, $taxonomy );
+		if ( null === $tt_id ) {
+			return;
+		}
+
+		$original_tt_id = null === $original_term_id ? null : $this->term_taxonomy_id( $original_term_id, $taxonomy );
+		$original_row   = null === $original_tt_id ? null : $this->row( $original_tt_id, 'tax_' . $taxonomy );
+
+		$this->set_details( $tt_id, 'tax_' . $taxonomy, $language, $original_row );
+	}
+
+	/**
+	 * {@inheritDoc}
+	 *
+	 * @param string|null $language Language code, or null for all languages.
+	 */
+	public function switch_to( ?string $language ): void {
+		$current                = apply_filters( 'wpml_current_language', null ); // phpcs:ignore WordPress.NamingConventions.PrefixAllGlobals.NonPrefixedHooknameFound -- WPML's public API hook.
+		$this->language_stack[] = is_string( $current ) ? $current : null;
+
+		do_action( 'wpml_switch_language', null === $language ? 'all' : $language ); // phpcs:ignore WordPress.NamingConventions.PrefixAllGlobals.NonPrefixedHooknameFound -- WPML's public API hook.
+	}
+
+	/**
+	 * {@inheritDoc}
+	 */
+	public function restore(): void {
+		if ( array() === $this->language_stack ) {
+			return;
+		}
+
+		do_action( 'wpml_switch_language', array_pop( $this->language_stack ) ); // phpcs:ignore WordPress.NamingConventions.PrefixAllGlobals.NonPrefixedHooknameFound -- WPML's public API hook.
+	}
 }
