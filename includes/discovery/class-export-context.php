@@ -120,4 +120,48 @@ final class Export_Context {
 	 * @var array<string, array<string, mixed>>
 	 */
 	private array $objects = array();
+
+	/**
+	 * Requirements the receiver must meet.
+	 *
+	 * @var array<string, array<string, string>>
+	 */
+	private array $requirements = array(
+		'blocks'         => array(),
+		'acf_fields'     => array(),
+		'post_types'     => array(),
+		'taxonomies'     => array(),
+		'page_templates' => array(),
+	);
+
+	/**
+	 * Warnings for the plan.
+	 *
+	 * @var string[]
+	 */
+	private array $warnings = array();
+
+	/**
+	 * Keys of referenced objects that do not exist on this site.
+	 *
+	 * @var string[]
+	 */
+	private array $absent = array();
+
+	/**
+	 * Constructor.
+	 *
+	 * @param Adapter $language Language adapter.
+	 */
+	public function __construct( Adapter $language ) {
+		$uploads = wp_get_upload_dir();
+
+		$this->language    = $language;
+		$this->uuid        = new Uuid();
+		$this->scanner     = new Block_Scanner();
+		$this->codec       = new Attributes_Codec();
+		$this->home_url    = untrailingslashit( (string) get_option( 'home' ) );
+		$this->uploads_url = untrailingslashit( (string) $uploads['baseurl'] );
+		$this->uploads_dir = untrailingslashit( (string) $uploads['basedir'] );
+	}
 }
