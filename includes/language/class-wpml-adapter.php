@@ -286,4 +286,54 @@ final class Wpml_Adapter implements Adapter {
 		}
 		// phpcs:enable
 	}
+
+	/**
+	 * {@inheritDoc}
+	 *
+	 * @param int $post_id Post id.
+	 */
+	public function unlink_post( int $post_id ): void {
+		global $wpdb;
+
+		$type = $this->post_element_type( $post_id );
+		if ( '' === $type ) {
+			return;
+		}
+
+		// phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery,WordPress.DB.DirectDatabaseQuery.NoCaching -- Removes the row of a post the relay created and is deleting.
+		$wpdb->delete(
+			$wpdb->prefix . 'icl_translations',
+			array(
+				'element_id'   => $post_id,
+				'element_type' => $type,
+			)
+		);
+	}
+
+	/**
+	 * WPML element type of a post (`post_page`), or '' when the post does not exist.
+	 *
+	 * @param int $post_id Post id.
+	 */
+	private function post_element_type( int $post_id ): string {
+		$post_type = get_post_type( $post_id );
+
+		return false === $post_type ? '' : 'post_' . $post_type;
+	}
+
+	/**
+	 * Term taxonomy id of a term.
+	 *
+	 * @param int    $term_id  Term id.
+	 * @param string $taxonomy Taxonomy.
+	 * @return int|null
+	 */
+	private function term_taxonomy_id( int $term_id, string $taxonomy ): ?int {
+		global $wpdb;
+
+		// phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery,WordPress.DB.DirectDatabaseQuery.NoCaching -- Read after direct writes; WPML's term filters must not scope this lookup to the current language.
+		$tt_id = $wpdb->get_var( $wpdb->prepare( "SELECT term_taxonomy_id FROM {$wpdb->term_taxonomy} WHERE term_id = %d AND taxonomy = %s", $term_id, $taxonomy ) );
+
+		return null === $tt_id ? null : (int) $tt_id;
+	}
 }
