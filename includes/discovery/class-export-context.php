@@ -78,4 +78,46 @@ final class Export_Context {
 	 * @var Attributes_Codec
 	 */
 	public Attributes_Codec $codec;
+
+	/**
+	 * Site home URL without trailing slash (the stored option, not a language-filtered value).
+	 *
+	 * @var string
+	 */
+	public string $home_url;
+
+	/**
+	 * Uploads base URL without trailing slash.
+	 *
+	 * @var string
+	 */
+	public string $uploads_url;
+
+	/**
+	 * Uploads base directory without trailing slash.
+	 *
+	 * @var string
+	 */
+	public string $uploads_dir;
+
+	/**
+	 * Wanted objects: role, missing-policy and the relations that reference them.
+	 *
+	 * @var array<string, array{role: string, on_missing: string, relations: string[]}>
+	 */
+	private array $wanted = array();
+
+	/**
+	 * Keys waiting to be exported.
+	 *
+	 * @var string[]
+	 */
+	private array $queue = array();
+
+	/**
+	 * Exported objects by key.
+	 *
+	 * @var array<string, array<string, mixed>>
+	 */
+	private array $objects = array();
 }
