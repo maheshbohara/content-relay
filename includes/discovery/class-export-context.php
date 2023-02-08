@@ -35,4 +35,47 @@ final class Export_Context {
 	 * Only reported when missing (links).
 	 */
 	public const ROLE_SOFT = 'soft';
+
+	/**
+	 * Mapped to an existing receiver object with a fallback (users).
+	 */
+	public const ROLE_MAPPED = 'mapped';
+
+	/**
+	 * Role strength; a stronger role replaces a weaker one when an object is referenced twice.
+	 */
+	private const ROLE_RANK = array(
+		self::ROLE_SOFT       => 1,
+		self::ROLE_MAPPED     => 1,
+		self::ROLE_REFERENCED => 2,
+		self::ROLE_OWNED      => 3,
+	);
+
+	/**
+	 * Language adapter.
+	 *
+	 * @var Adapter
+	 */
+	public Adapter $language;
+
+	/**
+	 * UUID service.
+	 *
+	 * @var Uuid
+	 */
+	public Uuid $uuid;
+
+	/**
+	 * Block scanner.
+	 *
+	 * @var Block_Scanner
+	 */
+	public Block_Scanner $scanner;
+
+	/**
+	 * Attribute codec.
+	 *
+	 * @var Attributes_Codec
+	 */
+	public Attributes_Codec $codec;
 }
