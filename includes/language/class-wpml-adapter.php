@@ -336,4 +336,78 @@ final class Wpml_Adapter implements Adapter {
 
 		return null === $tt_id ? null : (int) $tt_id;
 	}
+
+	/**
+	 * The icl_translations row of an element.
+	 *
+	 * @param int    $element_id   Post id or term_taxonomy_id.
+	 * @param string $element_type WPML element type.
+	 * @return array{trid: int, language_code: string, source_language_code: string|null}|null
+	 */
+	private function row( int $element_id, string $element_type ): ?array {
+		global $wpdb;
+
+		if ( '' === $element_type ) {
+			return null;
+		}
+
+		// phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery,WordPress.DB.DirectDatabaseQuery.NoCaching -- WPML caches go stale after the relay's direct writes; the relay must read the table itself.
+		$row = $wpdb->get_row( $wpdb->prepare( "SELECT trid, language_code, source_language_code FROM {$wpdb->prefix}icl_translations WHERE element_id = %d AND element_type = %s", $element_id, $element_type ), ARRAY_A );
+
+		if ( ! is_array( $row ) ) {
+			return null;
+		}
+
+		return array(
+			'trid'                 => (int) $row['trid'],
+			'language_code'        => (string) $row['language_code'],
+			'source_language_code' => null === $row['source_language_code'] || '' === $row['source_language_code'] ? null : (string) $row['source_language_code'],
+		);
+	}
+
+	/**
+	 * Every element in the translation group of an element.
+	 *
+	 * @param int    $element_id   Post id or term_taxonomy_id.
+	 * @param string $element_type WPML element type.
+	 * @return array<string, int> Language code => element id.
+	 */
+	private function group( int $element_id, string $element_type ): array {
+		global $wpdb;
+
+		if ( '' === $element_type ) {
+			return array();
+		}
+
+		// phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery,WordPress.DB.DirectDatabaseQuery.NoCaching -- WPML caches go stale after the relay's direct writes; the relay must read the table itself.
+		$rows = $wpdb->get_results( $wpdb->prepare( "SELECT t2.language_code, t2.element_id FROM {$wpdb->prefix}icl_translations t1 JOIN {$wpdb->prefix}icl_translations t2 ON t2.trid = t1.trid AND t2.element_type = t1.element_type WHERE t1.element_id = %d AND t1.element_type = %s AND t2.element_id IS NOT NULL", $element_id, $element_type ), ARRAY_A );
+
+		$group = array();
+		foreach ( (array) $rows as $row ) {
+			$group[ (string) $row['language_code'] ] = (int) $row['element_id'];
+		}
+
+		return $group;
+	}
+
+	/**
+	 * Writes an element's language through WPML.
+	 *
+	 * @param int                                                                             $element_id   Element id.
+	 * @param string                                                                          $element_type Element type.
+	 * @param string                                                                          $language     Language code.
+	 * @param array{trid: int, language_code: string, source_language_code: string|null}|null $original     Row of the original, or null.
+	 */
+	private function set_details( int $element_id, string $element_type, string $language, ?array $original ): void {
+		do_action(
+			'wpml_set_element_language_details', // phpcs:ignore WordPress.NamingConventions.PrefixAllGlobals.NonPrefixedHooknameFound -- WPML's public API hook.
+			array(
+				'element_id'           => $element_id,
+				'element_type'         => $element_type,
+				'trid'                 => null === $original ? null : $original['trid'],
+				'language_code'        => $language,
+				'source_language_code' => null === $original || $original['language_code'] === $language ? null : $original['language_code'],
+			)
+		);
+	}
 }
