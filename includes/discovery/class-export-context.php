@@ -164,4 +164,43 @@ final class Export_Context {
 		$this->uploads_url = untrailingslashit( (string) $uploads['baseurl'] );
 		$this->uploads_dir = untrailingslashit( (string) $uploads['basedir'] );
 	}
+
+	/**
+	 * Records a reference to an object and queues it for export.
+	 *
+	 * @param string $kind       `post`, `term` or `user`.
+	 * @param int    $id         Sender id.
+	 * @param string $role       One of the ROLE_ constants.
+	 * @param string $on_missing `create`, `block`, `warn` or `fallback`.
+	 * @param string $relation   Why it is referenced (for the plan), e.g. `parent`, `acf:image`.
+	 * @return string Object key.
+	 */
+	public function reference( string $kind, int $id, string $role, string $on_missing, string $relation ): string {
+		$key = $kind . ':' . $id;
+
+		if ( ! isset( $this->wanted[ $key ] ) ) {
+			$this->wanted[ $key ] = array(
+				'role'       => $role,
+				'on_missing' => $on_missing,
+				'relations'  => array( $relation ),
+			);
+			$this->queue[]        = $key;
+			return $key;
+		}
+
+		if ( ! in_array( $relation, $this->wanted[ $key ]['relations'], true ) ) {
+			$this->wanted[ $key ]['relations'][] = $relation;
+		}
+
+		if ( self::ROLE_RANK[ $role ] > self::ROLE_RANK[ $this->wanted[ $key ]['role'] ] ) {
+			$this->wanted[ $key ]['role']       = $role;
+			$this->wanted[ $key ]['on_missing'] = $on_missing;
+			if ( isset( $this->objects[ $key ] ) ) {
+				unset( $this->objects[ $key ] );
+				$this->queue[] = $key;
+			}
+		}
+
+		return $key;
+	}
 }
