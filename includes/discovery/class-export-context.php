@@ -203,4 +203,47 @@ final class Export_Context {
 
 		return $key;
 	}
+
+	/**
+	 * Next key to export, or null when the queue is empty.
+	 */
+	public function next(): ?string {
+		$key = array_shift( $this->queue );
+
+		return null === $key ? null : (string) $key;
+	}
+
+	/**
+	 * How a key is wanted.
+	 *
+	 * @param string $key Object key.
+	 * @return array{role: string, on_missing: string, relations: string[]}
+	 */
+	public function wanted( string $key ): array {
+		return $this->wanted[ $key ];
+	}
+
+	/**
+	 * Stores an exported object.
+	 *
+	 * @param string               $key    Object key.
+	 * @param array<string, mixed> $record Object.
+	 */
+	public function add_object( string $key, array $record ): void {
+		$record['relations']   = $this->wanted[ $key ]['relations'] ?? array();
+		$this->objects[ $key ] = $record;
+	}
+
+	/**
+	 * Exported objects, with the relations recorded after each was exported.
+	 *
+	 * @return array<string, array<string, mixed>>
+	 */
+	public function objects(): array {
+		foreach ( $this->objects as $key => $record ) {
+			$this->objects[ $key ]['relations'] = $this->wanted[ $key ]['relations'];
+		}
+
+		return $this->objects;
+	}
 }
