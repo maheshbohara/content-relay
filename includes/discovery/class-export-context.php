@@ -289,4 +289,53 @@ final class Export_Context {
 			$this->warnings[] = $message;
 		}
 	}
+
+	/**
+	 * Warnings.
+	 *
+	 * @return string[]
+	 */
+	public function warnings(): array {
+		return $this->warnings;
+	}
+
+	/**
+	 * Records a referenced object that does not exist on this site.
+	 *
+	 * @param string $key Object key.
+	 */
+	public function mark_absent( string $key ): void {
+		if ( ! in_array( $key, $this->absent, true ) ) {
+			$this->absent[] = $key;
+		}
+	}
+
+	/**
+	 * Keys of referenced objects that do not exist on this site.
+	 *
+	 * @return string[]
+	 */
+	public function absent(): array {
+		return $this->absent;
+	}
+
+	/**
+	 * Absolute URLs on this site found in text.
+	 *
+	 * @param string $text Text or HTML.
+	 * @return string[]
+	 */
+	public function urls_in( string $text ): array {
+		$host = wp_parse_url( $this->home_url, PHP_URL_HOST );
+		if ( ! is_string( $host ) || false === stripos( $text, $host ) ) {
+			return array();
+		}
+
+		$pattern = '#https?://' . preg_quote( $host, '#' ) . '(?::\d+)?(?:/[^\s"\'<>()\\\\]*)?#i';
+		if ( ! preg_match_all( $pattern, $text, $matches ) ) {
+			return array();
+		}
+
+		return array_values( array_unique( $matches[0] ) );
+	}
 }
