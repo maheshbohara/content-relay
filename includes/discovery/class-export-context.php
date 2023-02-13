@@ -246,4 +246,47 @@ final class Export_Context {
 
 		return $this->objects;
 	}
+
+	/**
+	 * Records a requirement.
+	 *
+	 * @param string $type  `blocks`, `acf_fields`, `post_types`, `taxonomies`, `page_templates`.
+	 * @param string $name  Requirement name.
+	 * @param string $value Detail (the ACF field type).
+	 */
+	public function require( string $type, string $name, string $value = '' ): void {
+		$this->requirements[ $type ][ $name ] = $value;
+	}
+
+	/**
+	 * Requirements: `acf_fields` as key => type, everything else as a sorted list.
+	 *
+	 * @return array<string, array<int|string, string>>
+	 */
+	public function requirements(): array {
+		$result = array();
+		foreach ( $this->requirements as $type => $items ) {
+			if ( 'acf_fields' === $type ) {
+				ksort( $items );
+				$result[ $type ] = $items;
+				continue;
+			}
+			$names = array_map( 'strval', array_keys( $items ) );
+			sort( $names );
+			$result[ $type ] = $names;
+		}
+
+		return $result;
+	}
+
+	/**
+	 * Adds a warning for the plan.
+	 *
+	 * @param string $message Message.
+	 */
+	public function warn( string $message ): void {
+		if ( ! in_array( $message, $this->warnings, true ) ) {
+			$this->warnings[] = $message;
+		}
+	}
 }
