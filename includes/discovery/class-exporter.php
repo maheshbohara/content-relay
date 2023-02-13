@@ -37,4 +37,44 @@ final class Exporter {
 		'_wpml_location_migration_done',
 		'_yoast_indexnow_last_ping',
 	);
+
+	/**
+	 * Attachment meta rebuilt by the receiver from the file itself.
+	 */
+	private const DENIED_ATTACHMENT_META = array(
+		'_wp_attached_file',
+		'_wp_attachment_metadata',
+		'_wp_attachment_backup_sizes',
+	);
+
+	/**
+	 * Post fields relayed for posts and pages.
+	 */
+	private const POST_FIELDS = array(
+		'post_title',
+		'post_name',
+		'post_status',
+		'post_excerpt',
+		'post_date',
+		'post_date_gmt',
+		'post_password',
+		'menu_order',
+		'comment_status',
+		'ping_status',
+		'post_mime_type',
+	);
+
+	/**
+	 * ACF field types whose stored value is an id, with the kind of object the id names.
+	 */
+	private const ACF_ID_TYPES = array(
+		'image'        => 'post',
+		'file'         => 'post',
+		'gallery'      => 'post',
+		'post_object'  => 'post',
+		'relationship' => 'post',
+		'page_link'    => 'post',
+		'taxonomy'     => 'term',
+		'user'         => 'user',
+	);
 }
