@@ -338,4 +338,43 @@ final class Export_Context {
 
 		return array_values( array_unique( $matches[0] ) );
 	}
+
+	/**
+	 * References the object a site URL points to: an attachment (owned) or a post (soft).
+	 *
+	 * @param string $url      Absolute URL on this site.
+	 * @param string $relation Relation label.
+	 * @return string|null Object key, or null when the URL does not resolve.
+	 */
+	public function reference_url( string $url, string $relation ): ?string {
+		if ( 0 === strpos( $url, $this->uploads_url . '/' ) ) {
+			$attachment_id = $this->attachment_for_url( $url );
+			return 0 === $attachment_id ? null : $this->reference( 'post', $attachment_id, self::ROLE_OWNED, 'create', $relation );
+		}
+
+		$post_id = url_to_postid( $url );
+
+		return 0 === $post_id ? null : $this->reference( 'post', $post_id, self::ROLE_SOFT, 'warn', $relation );
+	}
+
+	/**
+	 * Finds the attachment behind an uploads URL, including sub-size and `-scaled` URLs.
+	 *
+	 * @param string $url Uploads URL.
+	 */
+	private function attachment_for_url( string $url ): int {
+		$url = (string) strtok( $url, '?#' );
+		$id  = attachment_url_to_postid( $url );
+		if ( 0 !== $id ) {
+			return $id;
+		}
+
+		$full = (string) preg_replace( '/-\d+x\d+(?=\.[a-z0-9]+$)/i', '', $url );
+		$id   = attachment_url_to_postid( $full );
+		if ( 0 !== $id ) {
+			return $id;
+		}
+
+		return attachment_url_to_postid( (string) preg_replace( '/(\.[a-z0-9]+)$/i', '-scaled$1', $full ) );
+	}
 }
