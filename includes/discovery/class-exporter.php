@@ -219,4 +219,105 @@ final class Exporter {
 			'absent'       => $this->context->absent(),
 		);
 	}
+
+	/**
+	 * Exports a post or attachment.
+	 *
+	 * @param string                                                       $key    Object key.
+	 * @param int                                                          $id     Post id.
+	 * @param array{role: string, on_missing: string, relations: string[]} $wanted How the object is wanted.
+	 */
+	private function export_post( string $key, int $id, array $wanted ): void {
+		$post = get_post( $id );
+		if ( ! $post instanceof \WP_Post ) {
+			$this->context->warn( sprintf( '%s is referenced but does not exist on this site; it is not relayed.', $key ) );
+			$this->context->mark_absent( $key );
+			return;
+		}
+		if ( 'revision' === $post->post_type || ! post_type_exists( $post->post_type ) ) {
+			// A stale id (e.g. a wp-image class or a field value) that now points at a revision or an unregistered
+			// post type: the sender renders it as nothing, so it is not relayed and maps to 0 on the receiver.
+			$this->context->warn( sprintf( '%1$s is a %2$s, not content that can be relayed; the reference is dropped.', $key, $post->post_type ) );
+			$this->context->mark_absent( $key );
+			return;
+		}
+
+		$language = $this->context->language;
+		$owned    = Export_Context::ROLE_OWNED === $wanted['role'];
+		$record   = array(
+			'key'             => $key,
+			'kind'            => 'attachment' === $post->post_type ? 'attachment' : 'post',
+			'role'            => $wanted['role'],
+			'on_missing'      => $wanted['on_missing'],
+			'uuid'            => $owned ? $this->context->uuid->ensure_post( $id ) : $this->context->uuid->get_post( $id ),
+			'post_type'       => $post->post_type,
+			'title'           => $post->post_title,
+			'language'        => $language->post_language( $id ),
+			'source_language' => $language->post_source_language( $id ),
+			'translations'    => $this->keys( 'post', $language->post_translations( $id ) ),
+			'path'            => $this->path( $post ),
+		);
+
+		if ( ! $owned ) {
+			$this->context->add_object( $key, $record );
+			return;
+		}
+
+		$this->context->require( 'post_types', $post->post_type );
+
+		$fields = array();
+		foreach ( self::POST_FIELDS as $field ) {
+			$fields[ $field ] = $post->{$field};
+		}
+
+		$record['fields']    = $fields;
+		$record['content']   = $post->post_content;
+		$record['locations'] = array();
+		$record['meta']      = $this->post_meta( $id, 'attachment' === $post->post_type );
+		$record['terms']     = $this->terms( $id );
+		$record['author']    = null;
+		$record['parent']    = null;
+
+		if ( (int) $post->post_author > 0 ) {
+			$record['author']      = $this->context->reference( 'user', (int) $post->post_author, Export_Context::ROLE_MAPPED, 'fallback', 'author' );
+			$record['locations'][] = array(
+				'in'    => 'field',
+				'field' => 'post_author',
+				'kind'  => 'user',
+				'refs'  => array( $record['author'] ),
+			);
+		}
+
+		if ( 'attachment' === $post->post_type ) {
+			$record['file'] = $this->file( $id );
+			if ( null === $record['file'] && Media_Fallback::skip_missing() ) {
+				$this->context->warn( sprintf( '%s has no file on this site; it is skipped and its references are dropped.', $key ) );
+				$this->context->mark_absent( $key );
+				return;
+			}
+			// "Uploaded to": not a dependency, so it is not followed; the receiver sets it when the relay carries that post.
+			$record['upload_parent'] = $post->post_parent > 0 ? 'post:' . (int) $post->post_parent : null;
+		} elseif ( $post->post_parent > 0 ) {
+			$record['parent']      = $this->context->reference( 'post', (int) $post->post_parent, Export_Context::ROLE_REFERENCED, 'block', 'parent' );
+			$record['locations'][] = array(
+				'in'    => 'field',
+				'field' => 'post_parent',
+				'kind'  => 'post',
+				'refs'  => array( $record['parent'] ),
+			);
+		}
+
+		$template = $record['meta']['_wp_page_template'][0] ?? '';
+		if ( '' !== $template && 'default' !== $template ) {
+			$this->context->require( 'page_templates', $template );
+		}
+
+		foreach ( $this->resolvers as $resolver ) {
+			$resolver->collect( $post, $record, $this->context );
+		}
+
+		$record['locations'] = $this->dedupe_locations( $record['locations'] );
+
+		$this->context->add_object( $key, $record );
+	}
 }
