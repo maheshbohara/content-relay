@@ -414,4 +414,48 @@ final class Exporter {
 
 		return $refs;
 	}
+
+	/**
+	 * Exports a user identity (never the account itself).
+	 *
+	 * @param string $key Object key.
+	 * @param int    $id  User id.
+	 */
+	private function export_user( string $key, int $id ): void {
+		$user = get_userdata( $id );
+
+		$this->context->add_object(
+			$key,
+			array(
+				'key'          => $key,
+				'kind'         => 'user',
+				'role'         => Export_Context::ROLE_MAPPED,
+				'on_missing'   => 'fallback',
+				'login'        => false === $user ? '' : (string) $user->user_login,
+				'email'        => false === $user ? '' : (string) $user->user_email,
+				'display_name' => false === $user ? '' : (string) $user->display_name,
+			)
+		);
+	}
+
+	/**
+	 * Raw post meta rows (serialized strings kept byte-exact), minus denied keys.
+	 *
+	 * @param int  $post_id       Post id.
+	 * @param bool $is_attachment Whether the post is an attachment.
+	 * @return array<string, string[]>
+	 */
+	private function post_meta( int $post_id, bool $is_attachment ): array {
+		global $wpdb;
+
+		// phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery,WordPress.DB.DirectDatabaseQuery.NoCaching -- get_post_meta() unserializes values; the relay must carry the stored bytes.
+		$rows = $wpdb->get_results( $wpdb->prepare( "SELECT meta_key, meta_value FROM {$wpdb->postmeta} WHERE post_id = %d ORDER BY meta_id", $post_id ), ARRAY_A );
+
+		$denied = self::denied_meta();
+		if ( $is_attachment ) {
+			$denied = array_merge( $denied, self::DENIED_ATTACHMENT_META );
+		}
+
+		return $this->filter_meta( (array) $rows, $denied );
+	}
 }
