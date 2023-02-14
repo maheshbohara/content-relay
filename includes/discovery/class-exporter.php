@@ -131,4 +131,92 @@ final class Exporter {
 			)
 		);
 	}
+
+	/**
+	 * Post types that can be relayed, filterable via `content_relay_post_types`.
+	 *
+	 * @return string[]
+	 */
+	public static function post_types(): array {
+		$types = apply_filters( 'content_relay_post_types', Config::post_types() );
+
+		return is_array( $types ) ? array_map( 'strval', $types ) : Config::post_types();
+	}
+
+	/**
+	 * Exports a page and everything it needs.
+	 *
+	 * @param int $root_id Root post id.
+	 * @return array<string, mixed> Manifest.
+	 *
+	 * @throws Export_Exception When the root is missing or not a relayable post type.
+	 */
+	public function export( int $root_id ): array {
+		$root = get_post( $root_id );
+		if ( ! $root instanceof \WP_Post ) {
+			throw new Export_Exception( sprintf( 'Post %d does not exist.', (int) $root_id ) );
+		}
+		if ( ! in_array( $root->post_type, self::post_types(), true ) ) {
+			throw new Export_Exception( sprintf( 'Post %1$d is a %2$s; only %3$s can be relayed.', (int) $root_id, esc_html( $root->post_type ), esc_html( implode( ', ', self::post_types() ) ) ) );
+		}
+
+		$language     = $this->context->language;
+		$translations = $language->post_translations( $root_id );
+		if ( ! in_array( $root_id, $translations, true ) ) {
+			$translations = array( $root_id );
+		}
+
+		$roots = array();
+		foreach ( $translations as $post_id ) {
+			$roots[] = $this->context->reference( 'post', (int) $post_id, Export_Context::ROLE_OWNED, 'create', 'translation' );
+		}
+
+		$key = $this->context->next();
+		while ( null !== $key ) {
+			list( $kind, $id ) = explode( ':', $key );
+			$wanted            = $this->context->wanted( $key );
+
+			if ( 'post' === $kind ) {
+				$this->export_post( $key, (int) $id, $wanted );
+			} elseif ( 'term' === $kind ) {
+				$this->export_term( $key, (int) $id, $wanted );
+			} elseif ( 'user' === $kind ) {
+				$this->export_user( $key, (int) $id );
+			}
+
+			$key = $this->context->next();
+		}
+
+		$theme = wp_get_theme();
+
+		return array(
+			'schema'       => CONTENT_RELAY_SCHEMA,
+			'plugin'       => CONTENT_RELAY_VERSION,
+			'created_at'   => gmdate( 'c' ),
+			'source'       => array(
+				'home_url'    => $this->context->home_url,
+				'uploads_url' => $this->context->uploads_url,
+				'theme'       => array(
+					'stylesheet' => get_stylesheet(),
+					'version'    => (string) $theme->get( 'Version' ),
+					'files'      => Theme_Fingerprint::of( get_stylesheet_directory() ),
+				),
+				'language'    => array(
+					'adapter' => $language->id(),
+					'default' => $language->default_language(),
+					'active'  => $language->active_languages(),
+				),
+				'plugins'     => array(
+					'acf'   => function_exists( 'acf_get_field' ),
+					'yoast' => defined( 'WPSEO_VERSION' ),
+				),
+			),
+			'root'         => 'post:' . $root_id,
+			'roots'        => $roots,
+			'requirements' => $this->context->requirements(),
+			'objects'      => $this->context->objects(),
+			'warnings'     => $this->context->warnings(),
+			'absent'       => $this->context->absent(),
+		);
+	}
 }
