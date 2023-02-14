@@ -320,4 +320,58 @@ final class Exporter {
 
 		$this->context->add_object( $key, $record );
 	}
+
+	/**
+	 * Exports a term.
+	 *
+	 * @param string                                                       $key    Object key.
+	 * @param int                                                          $id     Term id.
+	 * @param array{role: string, on_missing: string, relations: string[]} $wanted How the object is wanted.
+	 */
+	private function export_term( string $key, int $id, array $wanted ): void {
+		global $wpdb;
+
+		// phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery,WordPress.DB.DirectDatabaseQuery.NoCaching -- WPML filters get_term() by the current language; the relay needs the row itself.
+		$row = $wpdb->get_row( $wpdb->prepare( "SELECT t.term_id, t.name, t.slug, tt.taxonomy, tt.description, tt.parent FROM {$wpdb->terms} t JOIN {$wpdb->term_taxonomy} tt ON tt.term_id = t.term_id WHERE t.term_id = %d", $id ), ARRAY_A );
+
+		if ( ! is_array( $row ) ) {
+			$this->context->warn( sprintf( '%s is referenced but does not exist on this site; it is not relayed.', $key ) );
+			$this->context->mark_absent( $key );
+			return;
+		}
+		if ( ! taxonomy_exists( (string) $row['taxonomy'] ) ) {
+			// A leftover term of a taxonomy nothing registers any more (e.g. a stale primary-category id).
+			$this->context->warn( sprintf( '%1$s belongs to taxonomy %2$s, which is not registered on this site; the reference is dropped.', $key, (string) $row['taxonomy'] ) );
+			$this->context->mark_absent( $key );
+			return;
+		}
+
+		$taxonomy = (string) $row['taxonomy'];
+		$language = $this->context->language;
+		$this->context->require( 'taxonomies', $taxonomy );
+
+		$parent = (int) $row['parent'];
+		$meta   = $this->term_meta( $id );
+
+		$this->context->add_object(
+			$key,
+			array(
+				'key'             => $key,
+				'kind'            => 'term',
+				'role'            => $wanted['role'],
+				'on_missing'      => $wanted['on_missing'],
+				'uuid'            => $this->context->uuid->get_term( $id ),
+				'taxonomy'        => $taxonomy,
+				'slug'            => (string) $row['slug'],
+				'name'            => (string) $row['name'],
+				'description'     => (string) $row['description'],
+				'parent'          => $parent > 0 ? $this->context->reference( 'term', $parent, $wanted['role'], $wanted['on_missing'], 'parent' ) : null,
+				'language'        => $language->term_language( $id, $taxonomy ),
+				'source_language' => $language->term_source_language( $id, $taxonomy ),
+				'translations'    => $this->keys( 'term', $language->term_translations( $id, $taxonomy ) ),
+				'meta'            => $meta,
+				'meta_refs'       => $this->term_meta_refs( $meta ),
+			)
+		);
+	}
 }
