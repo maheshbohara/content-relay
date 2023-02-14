@@ -77,4 +77,58 @@ final class Exporter {
 		'taxonomy'     => 'term',
 		'user'         => 'user',
 	);
+
+	/**
+	 * Export context.
+	 *
+	 * @var Export_Context
+	 */
+	private Export_Context $context;
+
+	/**
+	 * Resolvers.
+	 *
+	 * @var Resolver[]
+	 */
+	private array $resolvers;
+
+	/**
+	 * Constructor.
+	 *
+	 * @param Export_Context  $context   Export context.
+	 * @param Resolver[]|null $resolvers Resolvers; defaults to default_resolvers().
+	 */
+	public function __construct( Export_Context $context, ?array $resolvers = null ) {
+		$this->context   = $context;
+		$this->resolvers = null === $resolvers ? self::default_resolvers() : $resolvers;
+	}
+
+	/**
+	 * Default resolvers, filterable via `content_relay_resolvers`.
+	 *
+	 * @return Resolver[]
+	 */
+	public static function default_resolvers(): array {
+		$resolvers = array(
+			new Block_References_Resolver(),
+			new Acf_Resolver(),
+			new Meta_References_Resolver(),
+			new Html_Resolver(),
+			new Url_Resolver(),
+		);
+
+		$filtered = apply_filters( 'content_relay_resolvers', $resolvers );
+		if ( ! is_array( $filtered ) ) {
+			return $resolvers;
+		}
+
+		return array_values(
+			array_filter(
+				$filtered,
+				static function ( $resolver ): bool {
+					return $resolver instanceof Resolver;
+				}
+			)
+		);
+	}
 }
