@@ -374,4 +374,44 @@ final class Exporter {
 			)
 		);
 	}
+
+	/**
+	 * Which term meta values are ACF fields holding ids, so a receiver that creates the term can map or drop those ids.
+	 *
+	 * The ids are not followed during discovery: a relayed page almost always reuses its terms, and a term's own images
+	 * are not worth relaying with every page that uses it. The receiver reports what it had to drop.
+	 *
+	 * @param array<string, string[]> $meta Raw term meta.
+	 * @return array<int, array{key: string, index: int, kind: string}>
+	 */
+	private function term_meta_refs( array $meta ): array {
+		if ( ! function_exists( 'acf_get_field' ) ) {
+			return array();
+		}
+
+		$refs = array();
+		foreach ( $meta as $meta_key => $rows ) {
+			$meta_key  = (string) $meta_key;
+			$field_key = $meta[ '_' . $meta_key ][0] ?? null;
+			if ( '' === $meta_key || '_' === $meta_key[0] || ! is_string( $field_key ) || 0 !== strpos( $field_key, 'field_' ) ) {
+				continue;
+			}
+
+			$field = acf_get_field( $field_key );
+			$kind  = is_array( $field ) ? ( self::ACF_ID_TYPES[ (string) $field['type'] ] ?? null ) : null;
+			if ( null === $kind ) {
+				continue;
+			}
+
+			foreach ( array_keys( $rows ) as $index ) {
+				$refs[] = array(
+					'key'   => $meta_key,
+					'index' => (int) $index,
+					'kind'  => $kind,
+				);
+			}
+		}
+
+		return $refs;
+	}
 }
