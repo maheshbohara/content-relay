@@ -458,4 +458,50 @@ final class Exporter {
 
 		return $this->filter_meta( (array) $rows, $denied );
 	}
+
+	/**
+	 * Raw term meta rows, minus denied keys.
+	 *
+	 * @param int $term_id Term id.
+	 * @return array<string, string[]>
+	 */
+	private function term_meta( int $term_id ): array {
+		global $wpdb;
+
+		// phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery,WordPress.DB.DirectDatabaseQuery.NoCaching -- get_term_meta() unserializes values; the relay must carry the stored bytes.
+		$rows = $wpdb->get_results( $wpdb->prepare( "SELECT meta_key, meta_value FROM {$wpdb->termmeta} WHERE term_id = %d ORDER BY meta_id", $term_id ), ARRAY_A );
+
+		return $this->filter_meta( (array) $rows, self::denied_meta() );
+	}
+
+	/**
+	 * Meta keys never relayed, filterable via `content_relay_meta_denylist`.
+	 *
+	 * @return string[]
+	 */
+	public static function denied_meta(): array {
+		$denied = apply_filters( 'content_relay_meta_denylist', self::DENIED_META );
+
+		return is_array( $denied ) ? array_map( 'strval', $denied ) : self::DENIED_META;
+	}
+
+	/**
+	 * Groups meta rows by key, dropping denied keys and Content Relay's own keys.
+	 *
+	 * @param array<int, array<string, mixed>> $rows   Rows with meta_key and meta_value.
+	 * @param string[]                         $denied Denied keys.
+	 * @return array<string, string[]>
+	 */
+	private function filter_meta( array $rows, array $denied ): array {
+		$meta = array();
+		foreach ( $rows as $row ) {
+			$meta_key = (string) $row['meta_key'];
+			if ( in_array( $meta_key, $denied, true ) || 0 === strpos( $meta_key, '_content_relay_' ) || 0 === strpos( $meta_key, '_wp_trash_meta_' ) ) {
+				continue;
+			}
+			$meta[ $meta_key ][] = (string) $row['meta_value'];
+		}
+
+		return $meta;
+	}
 }
