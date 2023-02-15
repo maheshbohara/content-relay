@@ -571,4 +571,53 @@ final class Exporter {
 			'mime'     => (string) get_post_mime_type( $attachment_id ),
 		);
 	}
+
+	/**
+	 * Hierarchical path of a post (`export-navigator/vietnam`), or its slug.
+	 *
+	 * @param \WP_Post $post Post.
+	 */
+	private function path( \WP_Post $post ): string {
+		if ( is_post_type_hierarchical( $post->post_type ) ) {
+			$uri = get_page_uri( $post );
+			return false === $uri ? $post->post_name : (string) $uri;
+		}
+
+		return $post->post_name;
+	}
+
+	/**
+	 * Converts a language => id map to language => key.
+	 *
+	 * @param string             $kind Object kind.
+	 * @param array<string, int> $ids  Language => id.
+	 * @return array<string, string>
+	 */
+	private function keys( string $kind, array $ids ): array {
+		$keys = array();
+		foreach ( $ids as $language => $id ) {
+			$keys[ $language ] = $kind . ':' . $id;
+		}
+
+		return $keys;
+	}
+
+	/**
+	 * Removes duplicate locations; an `html` location wins over a `text` location at the same place.
+	 *
+	 * @param array<int, array<string, mixed>> $locations Locations.
+	 * @return array<int, array<string, mixed>>
+	 */
+	private function dedupe_locations( array $locations ): array {
+		$by_place = array();
+		foreach ( $locations as $location ) {
+			$place = (string) wp_json_encode( array( $location['in'], $location['field'] ?? null, $location['block'] ?? null, $location['key'] ?? null, $location['index'] ?? null, $location['path'] ?? null, 'text' === $location['kind'] || 'html' === $location['kind'] ? 'string' : $location['kind'] ) );
+
+			if ( ! isset( $by_place[ $place ] ) || ( 'html' === $location['kind'] && 'text' === $by_place[ $place ]['kind'] ) ) {
+				$by_place[ $place ] = $location;
+			}
+		}
+
+		return array_values( $by_place );
+	}
 }
