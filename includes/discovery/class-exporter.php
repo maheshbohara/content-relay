@@ -504,4 +504,71 @@ final class Exporter {
 
 		return $meta;
 	}
+
+	/**
+	 * Assigned terms, grouped by taxonomy.
+	 *
+	 * @param int $post_id Post id.
+	 * @return array<string, string[]> Taxonomy => term keys.
+	 */
+	private function terms( int $post_id ): array {
+		global $wpdb;
+
+		// phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery,WordPress.DB.DirectDatabaseQuery.NoCaching -- WPML scopes wp_get_object_terms() to the current language; the relay needs every assignment.
+		$rows = $wpdb->get_results( $wpdb->prepare( "SELECT tt.term_id, tt.taxonomy FROM {$wpdb->term_relationships} tr JOIN {$wpdb->term_taxonomy} tt ON tt.term_taxonomy_id = tr.term_taxonomy_id WHERE tr.object_id = %d ORDER BY tt.taxonomy, tr.term_order, tt.term_id", $post_id ), ARRAY_A );
+
+		$terms = array();
+		foreach ( (array) $rows as $row ) {
+			$terms[ (string) $row['taxonomy'] ][] = $this->context->reference( 'term', (int) $row['term_id'], Export_Context::ROLE_REFERENCED, 'create', 'assigned' );
+		}
+
+		return $terms;
+	}
+
+	/**
+	 * File details of an attachment.
+	 *
+	 * @param int $attachment_id Attachment id.
+	 * @return array{relative: string, original: string|null, source: string, sha1: string, bytes: int, mime: string}|null
+	 */
+	private function file( int $attachment_id ): ?array {
+		$relative = (string) get_post_meta( $attachment_id, '_wp_attached_file', true );
+		if ( '' === $relative ) {
+			$this->context->warn( sprintf( 'Attachment %d has no file.', $attachment_id ) );
+			return null;
+		}
+
+		$original      = null;
+		$original_path = wp_get_original_image_path( $attachment_id );
+		if ( is_string( $original_path ) && 0 === strpos( $original_path, $this->context->uploads_dir . '/' ) ) {
+			$candidate = substr( $original_path, strlen( $this->context->uploads_dir ) + 1 );
+			$original  = $candidate === $relative ? null : $candidate;
+		}
+
+		$source = null !== $original && is_readable( $this->context->uploads_dir . '/' . $original ) ? $original : $relative;
+		$path   = $this->context->uploads_dir . '/' . $source;
+		if ( ! is_readable( $path ) && '' !== Media_Fallback::base_url() ) {
+			$source = $relative;
+			$path   = $this->context->uploads_dir . '/' . $source;
+			$error  = Media_Fallback::fetch( $this->context->uploads_dir, $source );
+			if ( '' === $error ) {
+				$this->context->warn( sprintf( 'The file of attachment %1$d (%2$s) was missing on this site and was downloaded from the media fallback.', $attachment_id, $source ) );
+			} else {
+				$this->context->warn( sprintf( 'The file of attachment %1$d (%2$s) is missing and the media fallback failed: %3$s.', $attachment_id, $source, $error ) );
+			}
+		}
+		if ( ! is_readable( $path ) ) {
+			$this->context->warn( sprintf( 'The file of attachment %1$d (%2$s) is missing on this site.', $attachment_id, $source ) );
+			return null;
+		}
+
+		return array(
+			'relative' => $relative,
+			'original' => $original,
+			'source'   => $source,
+			'sha1'     => (string) sha1_file( $path ),
+			'bytes'    => (int) filesize( $path ),
+			'mime'     => (string) get_post_mime_type( $attachment_id ),
+		);
+	}
 }
