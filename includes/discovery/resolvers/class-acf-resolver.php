@@ -163,4 +163,30 @@ final class Acf_Resolver implements Resolver {
 				break;
 		}
 	}
+
+	/**
+	 * Adds a location for the ids in a value.
+	 *
+	 * @param array<string, mixed> $record     Exported object.
+	 * @param Export_Context       $context    Export context.
+	 * @param array<string, mixed> $where      Location without kind and refs.
+	 * @param mixed                $value      Value.
+	 * @param string               $kind       Reference kind.
+	 * @param string               $role       Role.
+	 * @param string               $on_missing Missing policy.
+	 * @param string               $relation   Relation label.
+	 */
+	private function ids( array &$record, Export_Context $context, array $where, $value, string $kind, string $role, string $on_missing, string $relation ): void {
+		$refs = array();
+		foreach ( Value_Path::ids( $value ) as $id ) {
+			$refs[] = $context->reference( $kind, $id, $role, $on_missing, $relation );
+		}
+
+		if ( array() !== $refs ) {
+			$record['locations'][] = $where + array(
+				'kind' => $kind,
+				'refs' => $refs,
+			);
+		}
+	}
 }
