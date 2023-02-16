@@ -90,4 +90,77 @@ final class Acf_Resolver implements Resolver {
 			}
 		}
 	}
+
+	/**
+	 * The field key stored beside a value, or null when the value is not an ACF field.
+	 *
+	 * @param array<string, mixed> $values Block data.
+	 * @param string               $name   Value name.
+	 */
+	private function field_key( array $values, string $name ): ?string {
+		if ( '' === $name || '_' === $name[0] ) {
+			return null;
+		}
+
+		$key = $values[ '_' . $name ] ?? null;
+
+		return is_string( $key ) && 0 === strpos( $key, 'field_' ) ? $key : null;
+	}
+
+	/**
+	 * Records references for one field value.
+	 *
+	 * @param array<string, mixed> $record    Exported object.
+	 * @param Export_Context       $context   Export context.
+	 * @param string               $field_key ACF field key.
+	 * @param mixed                $value     Field value.
+	 * @param array<string, mixed> $where     Location without kind and refs.
+	 */
+	private function field( array &$record, Export_Context $context, string $field_key, $value, array $where ): void {
+		$field = acf_get_field( $field_key );
+		if ( ! is_array( $field ) ) {
+			$context->warn( sprintf( 'ACF field %1$s used in %2$s is not registered on this site; its value is relayed unchanged.', $field_key, $record['key'] ) );
+			return;
+		}
+
+		$type = (string) $field['type'];
+		$context->require( 'acf_fields', $field_key, $type );
+
+		switch ( $type ) {
+			case 'image':
+			case 'file':
+			case 'gallery':
+				$this->ids( $record, $context, $where, $value, 'post', Export_Context::ROLE_OWNED, 'create', 'acf:' . $type );
+				break;
+
+			case 'post_object':
+			case 'relationship':
+			case 'page_link':
+				$this->ids( $record, $context, $where, $value, 'post', Export_Context::ROLE_REFERENCED, 'block', 'acf:' . $type );
+				break;
+
+			case 'taxonomy':
+				$this->ids( $record, $context, $where, $value, 'term', Export_Context::ROLE_REFERENCED, 'create', 'acf:taxonomy' );
+				break;
+
+			case 'user':
+				$this->ids( $record, $context, $where, $value, 'user', Export_Context::ROLE_MAPPED, 'fallback', 'acf:user' );
+				break;
+
+			case 'wysiwyg':
+				if ( is_string( $value ) ) {
+					$refs = array();
+					foreach ( Html_References::attachment_ids( $value ) as $id ) {
+						$refs[] = $context->reference( 'post', $id, Export_Context::ROLE_OWNED, 'create', 'acf:wysiwyg' );
+					}
+					if ( array() !== $refs ) {
+						$record['locations'][] = $where + array(
+							'kind' => 'html',
+							'refs' => $refs,
+						);
+					}
+				}
+				break;
+		}
+	}
 }
