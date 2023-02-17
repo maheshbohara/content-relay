@@ -100,4 +100,34 @@ final class Block_References_Resolver implements Resolver {
 			}
 		}
 	}
+
+	/**
+	 * Adds a location for the ids found at a path.
+	 *
+	 * @param array<string, mixed>   $record     Exported object.
+	 * @param Export_Context         $context    Export context.
+	 * @param int                    $block      Block index.
+	 * @param array<int, string|int> $path       Attribute path.
+	 * @param mixed                  $value      Value at the path.
+	 * @param string                 $kind       Reference kind.
+	 * @param string                 $role       Role.
+	 * @param string                 $on_missing Missing policy.
+	 * @param string                 $relation   Relation label.
+	 */
+	private function add( array &$record, Export_Context $context, int $block, array $path, $value, string $kind, string $role, string $on_missing, string $relation ): void {
+		$refs = array();
+		foreach ( Value_Path::ids( $value ) as $id ) {
+			$refs[] = $context->reference( $kind, $id, $role, $on_missing, $relation );
+		}
+
+		if ( array() !== $refs ) {
+			$record['locations'][] = array(
+				'in'    => 'attrs',
+				'block' => $block,
+				'path'  => $path,
+				'kind'  => $kind,
+				'refs'  => $refs,
+			);
+		}
+	}
 }
