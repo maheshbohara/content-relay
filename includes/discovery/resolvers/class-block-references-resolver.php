@@ -57,4 +57,47 @@ final class Block_References_Resolver implements Resolver {
 
 		return is_array( $filtered ) ? $filtered : $rules;
 	}
+
+	/**
+	 * {@inheritDoc}
+	 *
+	 * @param \WP_Post             $post    Sender post.
+	 * @param array<string, mixed> $record  Exported object.
+	 * @param Export_Context       $context Export context.
+	 */
+	public function collect( \WP_Post $post, array &$record, Export_Context $context ): void {
+		$content = (string) ( $record['content'] ?? '' );
+		if ( '' === $content ) {
+			return;
+		}
+
+		$rules = self::rules();
+
+		foreach ( $context->scanner->scan( $content ) as $token ) {
+			$context->require( 'blocks', $token->name );
+
+			if ( ! $token->has_attrs() ) {
+				continue;
+			}
+
+			$attrs = $context->codec->decode( $context->scanner->attrs_json( $content, $token ) );
+			if ( null === $attrs ) {
+				$context->warn( sprintf( 'Block %1$d (%2$s) in %3$s has attributes that are not valid JSON. It is relayed byte-for-byte, but it renders without its data on both sites.', $token->index, $token->name, $record['key'] ) );
+				continue;
+			}
+
+			foreach ( $rules[ $token->name ] ?? array() as $rule ) {
+				$this->add( $record, $context, $token->index, $rule['path'], Value_Path::get( $attrs, $rule['path'] ), $rule['kind'], $rule['role'], $rule['on_missing'], $token->name );
+			}
+
+			if ( 'core/query' === $token->name ) {
+				$tax_query = Value_Path::get( $attrs, array( 'query', 'taxQuery' ) );
+				if ( $tax_query instanceof \stdClass ) {
+					foreach ( get_object_vars( $tax_query ) as $taxonomy => $ids ) {
+						$this->add( $record, $context, $token->index, array( 'query', 'taxQuery', (string) $taxonomy ), $ids, 'term', Export_Context::ROLE_REFERENCED, 'create', 'core/query' );
+					}
+				}
+			}
+		}
+	}
 }
