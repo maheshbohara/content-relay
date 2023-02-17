@@ -40,4 +40,49 @@ final class Meta_References_Resolver implements Resolver {
 
 		return is_array( $filtered ) ? $filtered : $rules;
 	}
+
+	/**
+	 * {@inheritDoc}
+	 *
+	 * @param \WP_Post             $post    Sender post.
+	 * @param array<string, mixed> $record  Exported object.
+	 * @param Export_Context       $context Export context.
+	 */
+	public function collect( \WP_Post $post, array &$record, Export_Context $context ): void {
+		$rules = self::rules();
+
+		foreach ( (array) ( $record['meta'] ?? array() ) as $meta_key => $rows ) {
+			$meta_key = (string) $meta_key;
+			$rule     = $rules[ $meta_key ] ?? null;
+
+			if ( null === $rule && 1 === preg_match( '/^_yoast_wpseo_primary_(.+)$/', $meta_key, $matches ) && taxonomy_exists( $matches[1] ) ) {
+				$rule = array(
+					'kind'       => 'term',
+					'role'       => Export_Context::ROLE_REFERENCED,
+					'on_missing' => 'create',
+				);
+			}
+
+			if ( null === $rule ) {
+				continue;
+			}
+
+			foreach ( (array) $rows as $index => $raw ) {
+				$refs = array();
+				foreach ( Value_Path::ids( maybe_unserialize( (string) $raw ) ) as $id ) {
+					$refs[] = $context->reference( $rule['kind'], $id, $rule['role'], $rule['on_missing'], 'meta:' . $meta_key );
+				}
+				if ( array() !== $refs ) {
+					$record['locations'][] = array(
+						'in'    => 'meta',
+						'key'   => $meta_key,
+						'index' => (int) $index,
+						'path'  => array(),
+						'kind'  => $rule['kind'],
+						'refs'  => $refs,
+					);
+				}
+			}
+		}
+	}
 }
