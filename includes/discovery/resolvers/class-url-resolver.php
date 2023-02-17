@@ -90,4 +90,28 @@ final class Url_Resolver implements Resolver {
 			}
 		}
 	}
+
+	/**
+	 * Adds a text location when a string holds site URLs.
+	 *
+	 * @param array<string, mixed> $record  Exported object.
+	 * @param Export_Context       $context Export context.
+	 * @param string               $text    String value.
+	 * @param array<string, mixed> $where   Location without kind and refs.
+	 */
+	private function text( array &$record, Export_Context $context, string $text, array $where ): void {
+		$urls = $context->urls_in( $text );
+		if ( array() === $urls ) {
+			return;
+		}
+
+		foreach ( $urls as $url ) {
+			$context->reference_url( $url, 'link' );
+		}
+
+		$record['locations'][] = $where + array(
+			'kind' => 'text',
+			'refs' => array(),
+		);
+	}
 }
