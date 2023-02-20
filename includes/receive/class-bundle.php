@@ -109,4 +109,55 @@ final class Bundle {
 			}
 		}
 	}
+
+	/**
+	 * Manifest objects.
+	 *
+	 * @return array<string, array<string, mixed>>
+	 */
+	public function objects(): array {
+		return $this->manifest['objects'];
+	}
+
+	/**
+	 * References the sender itself could not resolve, each mapped to 0.
+	 *
+	 * Such a reference already points at nothing on the sender. Mapping it to 0 keeps the receiver the same, where
+	 * keeping the id could land on an unrelated object that happens to have that id here.
+	 *
+	 * @return array<string, int>
+	 */
+	public function absent_ids(): array {
+		$ids = array();
+		foreach ( (array) ( $this->manifest['absent'] ?? array() ) as $key ) {
+			if ( is_string( $key ) && 1 === preg_match( '/^(post|term|user):\d+$/', $key ) && ! isset( $this->manifest['objects'][ $key ] ) ) {
+				$ids[ $key ] = 0;
+			}
+		}
+
+		return $ids;
+	}
+
+	/**
+	 * Sender home URL.
+	 */
+	public function source_home(): string {
+		return (string) $this->manifest['source']['home_url'];
+	}
+
+	/**
+	 * Path of a bundled file.
+	 *
+	 * @param string $sha1 File SHA-1.
+	 * @return string|null Null when the bundle does not contain the file.
+	 */
+	public function file_path( string $sha1 ): ?string {
+		if ( 1 !== preg_match( '/^[a-f0-9]{40}$/', $sha1 ) ) {
+			return null;
+		}
+
+		$path = $this->files_dir . '/' . $sha1;
+
+		return is_readable( $path ) ? $path : null;
+	}
 }
