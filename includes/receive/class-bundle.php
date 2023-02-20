@@ -44,4 +44,69 @@ final class Bundle {
 		$this->manifest  = $manifest;
 		$this->files_dir = rtrim( $files_dir, '/' );
 	}
+
+	/**
+	 * Loads a bundle directory.
+	 *
+	 * @param string $dir Bundle directory.
+	 * @return self
+	 *
+	 * @throws Receive_Exception When the manifest is missing or invalid.
+	 */
+	public static function from_directory( string $dir ): self {
+		$dir  = rtrim( $dir, '/' );
+		$file = $dir . '/manifest.json';
+		if ( ! is_readable( $file ) ) {
+			throw new Receive_Exception( sprintf( 'No manifest.json in %s.', esc_html( $dir ) ) );
+		}
+
+		// phpcs:ignore WordPress.WP.AlternativeFunctions.file_get_contents_file_get_contents -- Local bundle file, not a remote URL.
+		$manifest = json_decode( (string) file_get_contents( $file ), true );
+		if ( ! is_array( $manifest ) ) {
+			throw new Receive_Exception( 'manifest.json is not valid JSON.' );
+		}
+
+		self::validate( $manifest );
+
+		return new self( $manifest, $dir . '/files' );
+	}
+
+	/**
+	 * Validates the manifest structure the receiver relies on.
+	 *
+	 * @param array<string, mixed> $manifest Manifest.
+	 *
+	 * @throws Receive_Exception On the first structural problem.
+	 */
+	public static function validate( array $manifest ): void {
+		if ( CONTENT_RELAY_SCHEMA !== ( $manifest['schema'] ?? null ) ) {
+			throw new Receive_Exception( sprintf( 'Manifest schema %1$s is not supported (this site reads schema %2$d).', esc_html( (string) wp_json_encode( $manifest['schema'] ?? null ) ), (int) CONTENT_RELAY_SCHEMA ) );
+		}
+
+		foreach ( array( 'source', 'requirements', 'objects' ) as $section ) {
+			if ( ! isset( $manifest[ $section ] ) || ! is_array( $manifest[ $section ] ) ) {
+				throw new Receive_Exception( sprintf( 'Manifest section "%s" is missing.', esc_html( $section ) ) );
+			}
+		}
+
+		if ( ! is_string( $manifest['source']['home_url'] ?? null ) || ! is_string( $manifest['root'] ?? null ) || ! is_array( $manifest['roots'] ?? null ) ) {
+			throw new Receive_Exception( 'Manifest source, root or roots are missing.' );
+		}
+
+		foreach ( $manifest['objects'] as $key => $record ) {
+			if ( ! is_array( $record ) || ( $record['key'] ?? null ) !== $key || ! in_array( $record['kind'] ?? null, self::KINDS, true ) || ! is_string( $record['role'] ?? null ) ) {
+				throw new Receive_Exception( sprintf( 'Manifest object %s is malformed.', esc_html( (string) $key ) ) );
+			}
+
+			if ( 'attachment' === $record['kind'] && 'owned' === $record['role'] && isset( $record['file']['sha1'] ) && 1 !== preg_match( '/^[a-f0-9]{40}$/', (string) $record['file']['sha1'] ) ) {
+				throw new Receive_Exception( sprintf( 'Manifest object %s has an invalid file hash.', esc_html( (string) $key ) ) );
+			}
+		}
+
+		foreach ( $manifest['roots'] as $root ) {
+			if ( ! isset( $manifest['objects'][ $root ] ) ) {
+				throw new Receive_Exception( sprintf( 'Root %s is not in the manifest.', esc_html( (string) $root ) ) );
+			}
+		}
+	}
 }
