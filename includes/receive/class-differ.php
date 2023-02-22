@@ -98,4 +98,62 @@ final class Differ {
 
 		return $diffs;
 	}
+
+	/**
+	 * Diffs one post or attachment.
+	 *
+	 * @param array<string, mixed> $record   Manifest object.
+	 * @param int                  $post_id  Receiver post id.
+	 * @param Rewriter             $rewriter Rewriter with the plan's known ids.
+	 * @param array<string, int>   $ids      Object key => receiver id (0 when it will be created).
+	 * @return array<string, mixed>
+	 */
+	private function diff_post( array $record, int $post_id, Rewriter $rewriter, array $ids ): array {
+		global $wpdb;
+
+		// phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery,WordPress.DB.DirectDatabaseQuery.NoCaching -- Compares with the stored row, as the relay would replace it.
+		$row = $wpdb->get_row( $wpdb->prepare( "SELECT * FROM {$wpdb->posts} WHERE ID = %d", $post_id ), ARRAY_A );
+		if ( ! is_array( $row ) ) {
+			return array( 'missing' => true );
+		}
+
+		$approximate = false;
+		try {
+			$incoming = $rewriter->rewrite( $record );
+		} catch ( Apply_Exception $e ) {
+			$approximate = true;
+			$incoming    = array(
+				'content' => (string) ( $record['content'] ?? '' ),
+				'fields'  => (array) ( $record['fields'] ?? array() ),
+				'meta'    => (array) ( $record['meta'] ?? array() ),
+			);
+		}
+
+		$fields = array();
+		foreach ( self::FIELDS as $field ) {
+			if ( array_key_exists( $field, $incoming['fields'] ) && (string) $row[ $field ] !== (string) $incoming['fields'][ $field ] ) {
+				$fields[] = array(
+					'field' => $field,
+					'old'   => self::short( (string) $row[ $field ] ),
+					'new'   => self::short( (string) $incoming['fields'][ $field ] ),
+				);
+			}
+		}
+
+		$parent = is_string( $record['parent'] ?? null ) ? (int) ( $ids[ $record['parent'] ] ?? 0 ) : 0;
+		if ( (int) $row['post_parent'] !== $parent ) {
+			$fields[] = array(
+				'field' => 'post_parent',
+				'old'   => (string) $row['post_parent'],
+				'new'   => (string) $parent,
+			);
+		}
+
+		return array(
+			'fields'      => $fields,
+			'meta'        => $this->diff_meta( $record, $post_id, (array) $incoming['meta'] ),
+			'content'     => Line_Diff::diff( (string) $row['post_content'], (string) $incoming['content'] ),
+			'approximate' => $approximate,
+		);
+	}
 }
