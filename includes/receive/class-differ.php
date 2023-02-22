@@ -156,4 +156,93 @@ final class Differ {
 			'approximate' => $approximate,
 		);
 	}
+
+	/**
+	 * Diffs meta the way Post_Writer::replace_meta() would replace it.
+	 *
+	 * @param array<string, mixed> $record   Manifest object.
+	 * @param int                  $post_id  Receiver post id.
+	 * @param array<mixed>         $incoming Rewritten meta: key => raw values.
+	 * @return array{added: array<int, array<string, string>>, changed: array<int, array<string, string>>, removed: array<int, array<string, string>>, truncated: bool}
+	 */
+	private function diff_meta( array $record, int $post_id, array $incoming ): array {
+		global $wpdb;
+
+		$kept = Exporter::denied_meta();
+		if ( 'attachment' === $record['kind'] ) {
+			$kept = array_merge( $kept, self::ATTACHMENT_META );
+		}
+
+		$current = array();
+		// phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery,WordPress.DB.DirectDatabaseQuery.NoCaching -- Compares with the stored rows, as the relay would replace them.
+		$rows = $wpdb->get_results( $wpdb->prepare( "SELECT meta_key, meta_value FROM {$wpdb->postmeta} WHERE post_id = %d ORDER BY meta_id", $post_id ), ARRAY_A );
+		foreach ( (array) $rows as $meta_row ) {
+			$key = (string) $meta_row['meta_key'];
+			if ( ! self::is_kept( $key, $kept ) ) {
+				$current[ $key ][] = (string) $meta_row['meta_value'];
+			}
+		}
+
+		$new = array();
+		foreach ( $incoming as $key => $values ) {
+			if ( ! self::is_kept( (string) $key, $kept ) ) {
+				$new[ (string) $key ] = array_map( 'strval', (array) $values );
+			}
+		}
+
+		$meta = array(
+			'added'     => array(),
+			'changed'   => array(),
+			'removed'   => array(),
+			'truncated' => false,
+		);
+		foreach ( $new as $key => $values ) {
+			if ( ! isset( $current[ $key ] ) ) {
+				$meta['added'][] = array(
+					'key' => $key,
+					'new' => self::short( implode( ' | ', $values ) ),
+				);
+			} elseif ( $current[ $key ] !== $values ) {
+				$meta['changed'][] = array(
+					'key' => $key,
+					'old' => self::short( implode( ' | ', $current[ $key ] ) ),
+					'new' => self::short( implode( ' | ', $values ) ),
+				);
+			}
+		}
+		foreach ( array_diff_key( $current, $new ) as $key => $values ) {
+			$meta['removed'][] = array(
+				'key' => (string) $key,
+				'old' => self::short( implode( ' | ', $values ) ),
+			);
+		}
+
+		foreach ( array( 'added', 'changed', 'removed' ) as $group ) {
+			if ( count( $meta[ $group ] ) > self::MAX_META_KEYS ) {
+				$meta[ $group ]    = array_slice( $meta[ $group ], 0, self::MAX_META_KEYS );
+				$meta['truncated'] = true;
+			}
+		}
+
+		return $meta;
+	}
+
+	/**
+	 * Whether a meta key is kept by the receiver and never replaced.
+	 *
+	 * @param string   $key  Meta key.
+	 * @param string[] $kept Kept keys.
+	 */
+	private static function is_kept( string $key, array $kept ): bool {
+		return in_array( $key, $kept, true ) || 0 === strpos( $key, '_content_relay_' ) || 0 === strpos( $key, '_wp_trash_meta_' );
+	}
+
+	/**
+	 * Shortens a value for display.
+	 *
+	 * @param string $value Value.
+	 */
+	private static function short( string $value ): string {
+		return strlen( $value ) > self::MAX_VALUE_BYTES ? substr( $value, 0, self::MAX_VALUE_BYTES ) . '…' : $value;
+	}
 }
