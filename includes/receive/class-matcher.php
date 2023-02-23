@@ -205,4 +205,55 @@ final class Matcher {
 
 		return $result;
 	}
+
+	/**
+	 * Matches a post or attachment by UUID within its post type and language.
+	 *
+	 * @param array<string, mixed> $record Manifest object.
+	 * @return array{id: int|null, via: string, candidates: int[], path_conflict: bool}
+	 */
+	private function by_uuid( array $record ): array {
+		if ( ! is_string( $record['uuid'] ?? null ) ) {
+			return $this->result( array(), 'uuid' );
+		}
+
+		$ids = array_filter(
+			$this->context->uuid->find_posts( $record['uuid'] ),
+			function ( int $post_id ) use ( $record ): bool {
+				$post = get_post( $post_id );
+				return $post instanceof \WP_Post
+					&& $post->post_type === $record['post_type']
+					&& ( 'attachment' === $post->post_type || ! in_array( $post->post_status, self::IGNORED_STATUSES, true ) )
+					&& $this->context->language->post_language( $post_id ) === $record['language'];
+			}
+		);
+
+		return $this->result( array_values( $ids ), 'uuid' );
+	}
+
+	/**
+	 * Matches a post through a language version that already matched.
+	 *
+	 * @param array<string, mixed>                $record  Manifest post.
+	 * @param array<string, array<string, mixed>> $objects Manifest objects.
+	 * @return array{id: int|null, via: string, candidates: int[], path_conflict: bool}
+	 */
+	private function by_translation( array $record, array $objects ): array {
+		if ( null === $record['language'] ) {
+			return $this->result( array(), 'translation' );
+		}
+
+		foreach ( (array) ( $record['translations'] ?? array() ) as $sibling_key ) {
+			$sibling_id = $this->matches[ $sibling_key ]['id'] ?? null;
+			if ( $sibling_key === $record['key'] || null === $sibling_id || ! isset( $objects[ $sibling_key ] ) ) {
+				continue;
+			}
+			$translations = $this->context->language->post_translations( $sibling_id );
+			if ( isset( $translations[ $record['language'] ] ) ) {
+				return $this->result( array( (int) $translations[ $record['language'] ] ), 'translation' );
+			}
+		}
+
+		return $this->result( array(), 'translation' );
+	}
 }
