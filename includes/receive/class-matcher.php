@@ -87,4 +87,73 @@ final class Matcher {
 
 		return $this->matches;
 	}
+
+	/**
+	 * Matches a user by login, then email, then falls back to the acting administrator.
+	 *
+	 * @param array<string, mixed> $record Manifest user.
+	 * @return array{id: int|null, via: string, candidates: int[], path_conflict: bool}
+	 */
+	private function match_user( array $record ): array {
+		$user = '' === $record['login'] ? false : get_user_by( 'login', (string) $record['login'] );
+		if ( $user instanceof \WP_User ) {
+			return $this->result( array( (int) $user->ID ), 'login' );
+		}
+
+		$user = '' === $record['email'] ? false : get_user_by( 'email', (string) $record['email'] );
+		if ( $user instanceof \WP_User ) {
+			return $this->result( array( (int) $user->ID ), 'email' );
+		}
+
+		$fallback = get_current_user_id();
+		if ( 0 === $fallback ) {
+			$admins   = get_users(
+				array(
+					'role'    => 'administrator',
+					'number'  => 1,
+					'orderby' => 'ID',
+					'fields'  => 'ID',
+				)
+			);
+			$fallback = (int) ( $admins[0] ?? 0 );
+		}
+
+		return $this->result( 0 === $fallback ? array() : array( $fallback ), 'fallback' );
+	}
+
+	/**
+	 * Matches a term by UUID, then taxonomy + slug, within its language.
+	 *
+	 * @param array<string, mixed> $record Manifest term.
+	 * @return array{id: int|null, via: string, candidates: int[], path_conflict: bool}
+	 */
+	private function match_term( array $record ): array {
+		global $wpdb;
+
+		$taxonomy = (string) $record['taxonomy'];
+
+		if ( is_string( $record['uuid'] ?? null ) ) {
+			$ids = array_filter(
+				$this->context->uuid->find_terms( $record['uuid'] ),
+				function ( int $term_id ) use ( $record, $taxonomy ): bool {
+					return $this->context->language->term_language( $term_id, $taxonomy ) === $record['language'];
+				}
+			);
+			if ( array() !== $ids ) {
+				return $this->result( array_values( $ids ), 'uuid' );
+			}
+		}
+
+		// phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery,WordPress.DB.DirectDatabaseQuery.NoCaching -- WPML filters term queries by the current language; matching must see every term.
+		$ids = $wpdb->get_col( $wpdb->prepare( "SELECT t.term_id FROM {$wpdb->terms} t JOIN {$wpdb->term_taxonomy} tt ON tt.term_id = t.term_id WHERE tt.taxonomy = %s AND t.slug = %s", $taxonomy, (string) $record['slug'] ) );
+
+		$ids = array_filter(
+			array_map( 'intval', $ids ),
+			function ( int $term_id ) use ( $record, $taxonomy ): bool {
+				return $this->context->language->term_language( $term_id, $taxonomy ) === $record['language'];
+			}
+		);
+
+		return $this->result( array_values( $ids ), 'slug' );
+	}
 }
