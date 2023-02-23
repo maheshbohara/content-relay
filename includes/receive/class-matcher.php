@@ -156,4 +156,53 @@ final class Matcher {
 
 		return $this->result( array_values( $ids ), 'slug' );
 	}
+
+	/**
+	 * Matches an attachment by UUID, then by file (same path and same bytes) within its language.
+	 *
+	 * @param array<string, mixed> $record Manifest attachment.
+	 * @return array{id: int|null, via: string, candidates: int[], path_conflict: bool}
+	 */
+	private function match_attachment( array $record ): array {
+		global $wpdb;
+
+		$by_uuid = $this->by_uuid( $record );
+		if ( null !== $by_uuid['id'] || array() !== $by_uuid['candidates'] ) {
+			return $by_uuid;
+		}
+
+		$file = $record['file'] ?? null;
+		if ( ! is_array( $file ) ) {
+			return $this->result( array(), 'none' );
+		}
+
+		$paths = array_values( array_unique( array_filter( array( (string) $file['relative'], (string) $file['source'] ) ) ) );
+		// phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery,WordPress.DB.DirectDatabaseQuery.NoCaching,WordPress.DB.PreparedSQLPlaceholders.UnfinishedPrepare -- Placeholders are generated for each path.
+		$ids = $wpdb->get_col( $wpdb->prepare( "SELECT post_id FROM {$wpdb->postmeta} WHERE meta_key = '_wp_attached_file' AND meta_value IN (" . implode( ',', array_fill( 0, count( $paths ), '%s' ) ) . ')', $paths ) );
+
+		$same_file     = array();
+		$path_conflict = false;
+		foreach ( array_map( 'intval', $ids ) as $attachment_id ) {
+			if ( $this->context->language->post_language( $attachment_id ) !== $record['language'] ) {
+				continue;
+			}
+			if ( $this->context->attachment_sha1( $attachment_id ) === $file['sha1'] ) {
+				$same_file[] = $attachment_id;
+			} else {
+				$path_conflict = true;
+			}
+		}
+
+		// Duplicate attachments of one file: on sites cloned from one database the sender's own id is the same
+		// object here, so it settles the tie. Anything else stays ambiguous and blocks.
+		$source_id = (int) substr( (string) ( $record['key'] ?? '' ), strlen( 'post:' ) );
+		if ( count( array_unique( $same_file ) ) > 1 && in_array( $source_id, $same_file, true ) ) {
+			$same_file = array( $source_id );
+		}
+
+		$result                  = $this->result( $same_file, 'file' );
+		$result['path_conflict'] = $path_conflict || $this->path_taken_by_other_bytes( $file );
+
+		return $result;
+	}
 }
