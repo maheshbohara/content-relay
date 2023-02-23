@@ -42,4 +42,49 @@ final class Matcher {
 	public function __construct( Receive_Context $context ) {
 		$this->context = $context;
 	}
+
+	/**
+	 * Matches every object in a manifest.
+	 *
+	 * Posts are matched in three passes so the translation pass can use UUID matches: UUID, then a translation of an
+	 * already-matched language version, then path.
+	 *
+	 * @param array<string, array<string, mixed>> $objects Manifest objects.
+	 * @return array<string, array{id: int|null, via: string, candidates: int[], path_conflict: bool}>
+	 */
+	public function match_all( array $objects ): array {
+		$this->matches = array();
+		$posts         = array();
+
+		foreach ( $objects as $key => $record ) {
+			switch ( $record['kind'] ) {
+				case 'user':
+					$this->matches[ $key ] = $this->match_user( $record );
+					break;
+				case 'term':
+					$this->matches[ $key ] = $this->match_term( $record );
+					break;
+				case 'attachment':
+					$this->matches[ $key ] = $this->match_attachment( $record );
+					break;
+				default:
+					$posts[ $key ]         = $record;
+					$this->matches[ $key ] = $this->by_uuid( $record );
+			}
+		}
+
+		foreach ( $posts as $key => $record ) {
+			if ( null === $this->matches[ $key ]['id'] && array() === $this->matches[ $key ]['candidates'] ) {
+				$this->matches[ $key ] = $this->by_translation( $record, $objects );
+			}
+		}
+
+		foreach ( $posts as $key => $record ) {
+			if ( null === $this->matches[ $key ]['id'] && array() === $this->matches[ $key ]['candidates'] ) {
+				$this->matches[ $key ] = $this->result( $this->posts_at_path( $record ), 'path' );
+			}
+		}
+
+		return $this->matches;
+	}
 }
