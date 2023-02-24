@@ -324,4 +324,58 @@ final class Matcher {
 
 		return $ids;
 	}
+
+	/**
+	 * Whether a parent chain spells out the given ancestor slugs exactly.
+	 *
+	 * @param int      $parent_id Parent post id.
+	 * @param string[] $segments  Ancestor slugs, root first.
+	 */
+	private function ancestors_match( int $parent_id, array $segments ): bool {
+		global $wpdb;
+
+		while ( array() !== $segments ) {
+			if ( 0 === $parent_id ) {
+				return false;
+			}
+			$slug = array_pop( $segments );
+			// phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery,WordPress.DB.DirectDatabaseQuery.NoCaching -- Walks the stored parent chain.
+			$row = $wpdb->get_row( $wpdb->prepare( "SELECT post_name, post_parent FROM {$wpdb->posts} WHERE ID = %d", $parent_id ), ARRAY_A );
+			if ( ! is_array( $row ) || $row['post_name'] !== $slug ) {
+				return false;
+			}
+			$parent_id = (int) $row['post_parent'];
+		}
+
+		return 0 === $parent_id;
+	}
+
+	/**
+	 * Whether the file's path exists on disk with different bytes (an orphan or another site's upload).
+	 *
+	 * @param array<string, mixed> $file Manifest file.
+	 */
+	private function path_taken_by_other_bytes( array $file ): bool {
+		$path = $this->context->uploads_dir . '/' . $file['source'];
+
+		return is_readable( $path ) && sha1_file( $path ) !== $file['sha1'];
+	}
+
+	/**
+	 * Builds a result from candidate ids.
+	 *
+	 * @param int[]  $ids Candidate ids.
+	 * @param string $via How they were found.
+	 * @return array{id: int|null, via: string, candidates: int[], path_conflict: bool}
+	 */
+	private function result( array $ids, string $via ): array {
+		$ids = array_values( array_unique( $ids ) );
+
+		return array(
+			'id'            => 1 === count( $ids ) ? $ids[0] : null,
+			'via'           => array() === $ids ? 'none' : $via,
+			'candidates'    => $ids,
+			'path_conflict' => false,
+		);
+	}
 }
