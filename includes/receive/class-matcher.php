@@ -256,4 +256,72 @@ final class Matcher {
 
 		return $this->result( array(), 'translation' );
 	}
+
+	/**
+	 * Posts at a hierarchical path, in the object's post type and language.
+	 *
+	 * @param array<string, mixed> $record Manifest post.
+	 * @return int[]
+	 */
+	private function posts_at_path( array $record ): array {
+		global $wpdb;
+
+		$segments = array_values(
+			array_filter(
+				explode( '/', trim( (string) $record['path'], '/' ) ),
+				static function ( string $segment ): bool {
+					return '' !== $segment;
+				}
+			)
+		);
+		if ( array() === $segments ) {
+			return array();
+		}
+
+		$slug = (string) end( $segments );
+		// phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery,WordPress.DB.DirectDatabaseQuery.NoCaching -- get_page_by_path() is not language-aware and returns the first of same-slug translations.
+		$rows = $wpdb->get_results( $wpdb->prepare( "SELECT ID, post_parent, post_status FROM {$wpdb->posts} WHERE post_type = %s AND post_name = %s", (string) $record['post_type'], $slug ), ARRAY_A );
+
+		$ids       = array();
+		$any_lang  = array();
+		$same_id   = false;
+		$source_id = (int) substr( (string) ( $record['key'] ?? '' ), strlen( 'post:' ) );
+		foreach ( (array) $rows as $row ) {
+			$post_id = (int) $row['ID'];
+			if ( in_array( $row['post_status'], self::IGNORED_STATUSES, true ) ) {
+				continue;
+			}
+			if ( ! $this->ancestors_match( (int) $row['post_parent'], array_slice( $segments, 0, -1 ) ) ) {
+				continue;
+			}
+			$any_lang[] = $post_id;
+			$language   = $this->context->language->post_language( $post_id );
+			if ( $post_id === $source_id && ( null === $language || $language === $record['language'] ) ) {
+				$same_id = true;
+			}
+			if ( $language !== $record['language'] ) {
+				continue;
+			}
+			$ids[] = $post_id;
+		}
+
+		// Same address and the sender's own id, with no language or the same one: on sites cloned from one database
+		// that is this object, even when another post of that language shares the slug (duplicates are common).
+		if ( $same_id ) {
+			return array( $source_id );
+		}
+
+		// A referenced post the sender has no language for (a stray copy outside WPML) can only be found by its
+		// address. One candidate is taken; among several, the sender's own id settles it on sites cloned from one
+		// database. Owned posts never take this path: adopting would change a translated post's language.
+		if ( array() === $ids && null === $record['language'] && 'referenced' === ( $record['role'] ?? '' ) ) {
+			if ( 1 === count( $any_lang ) ) {
+				$ids = $any_lang;
+			} elseif ( in_array( $source_id, $any_lang, true ) ) {
+				$ids = array( $source_id );
+			}
+		}
+
+		return $ids;
+	}
 }
