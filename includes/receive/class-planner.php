@@ -167,4 +167,77 @@ final class Planner {
 
 		return $plan;
 	}
+
+	/**
+	 * Plans an owned post or attachment.
+	 *
+	 * @param array<string, mixed>                                                     $record    Manifest object.
+	 * @param array{id: int|null, via: string, candidates: int[], path_conflict: bool} $found     Match.
+	 * @param string                                                                   $peer      Sender home URL.
+	 * @param bool                                                                     $overwrite Overwrite allowed.
+	 * @param array<string, mixed>                                                     $item      Plan item, modified.
+	 * @param string[]                                                                 $blockers  Blockers, appended to.
+	 * @param string[]                                                                 $warnings  Warnings, appended to.
+	 * @param string[]                                                                 $files     Files needed, appended to.
+	 * @param Bundle                                                                   $bundle    Bundle.
+	 */
+	private function plan_owned( array $record, array $found, string $peer, bool $overwrite, array &$item, array &$blockers, array &$warnings, array &$files, Bundle $bundle ): void {
+		$label         = $item['label'];
+		$is_attachment = 'attachment' === $record['kind'];
+
+		if ( $is_attachment && ! is_array( $record['file'] ?? null ) ) {
+			$item['action'] = 'missing';
+			$blockers[]     = sprintf( '%s has no file on the sender.', $label );
+			return;
+		}
+
+		if ( null === $found['id'] ) {
+			if ( $is_attachment ) {
+				$item['action'] = $found['path_conflict'] ? 'create-new-file' : 'create';
+				$item['note']   = $found['path_conflict'] ? 'A different file already uses this name here; the upload gets a new name.' : '';
+				$this->need_file( $record, $label, $files, $blockers, $bundle );
+			} else {
+				$item['action'] = 'create';
+			}
+			return;
+		}
+
+		if ( 'uuid' !== $found['via'] ) {
+			$item['action'] = 'adopt';
+			$item['note']   = sprintf( 'Exists here (found by %s) but was never relayed; it will be replaced after confirmation.', $found['via'] );
+			$this->edit_lock_warning( (int) $found['id'], $label, $warnings );
+			return;
+		}
+
+		$file_changed = $is_attachment && $this->context->attachment_sha1( (int) $found['id'] ) !== $record['file']['sha1'];
+		$state        = $this->context->sync->get_post( (int) $found['id'], $peer );
+
+		if ( null === $state ) {
+			$item['action'] = $file_changed ? 'replace-file' : 'adopt';
+			$item['note']   = 'Has the same identity but no relay history with this sender; it will be replaced after confirmation.';
+		} elseif ( $this->context->state->post( (int) $found['id'] ) !== $state['local'] ) {
+			if ( $overwrite ) {
+				$item['action'] = $file_changed ? 'replace-file' : 'overwrite';
+				$item['note']   = 'Changed here since the last relay; those changes will be overwritten (a backup is kept).';
+			} else {
+				$item['action'] = 'conflict';
+				$blockers[]     = sprintf( '%s was changed on this site since the last relay. Relay with overwrite to replace those changes.', $label );
+			}
+		} elseif ( $file_changed ) {
+			$item['action'] = 'replace-file';
+		} elseif ( $this->context->state->incoming( $record, $this->resolved( $record ) ) === $state['incoming'] ) {
+			$item['action'] = 'unchanged';
+		} else {
+			$item['action'] = 'update';
+		}
+
+		if ( 'replace-file' === $item['action'] ) {
+			$item['note'] = 'The file changed on the sender: a new attachment gets the new file; the existing one keeps its file.';
+			$this->need_file( $record, $label, $files, $blockers, $bundle );
+		}
+
+		if ( 'unchanged' !== $item['action'] ) {
+			$this->edit_lock_warning( (int) $found['id'], $label, $warnings );
+		}
+	}
 }
