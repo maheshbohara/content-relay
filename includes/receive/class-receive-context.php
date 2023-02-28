@@ -36,4 +36,46 @@ final class Receive_Context {
 	 * @var Uuid
 	 */
 	public Uuid $uuid;
+
+	/**
+	 * Block scanner.
+	 *
+	 * @var Block_Scanner
+	 */
+	public Block_Scanner $scanner;
+
+	/**
+	 * Attribute codec.
+	 *
+	 * @var Attributes_Codec
+	 */
+	public Attributes_Codec $codec;
+
+	/**
+	 * Content editor.
+	 *
+	 * @var Content_Editor
+	 */
+	public Content_Editor $editor;
+
+	/**
+	 * Fingerprint hasher.
+	 *
+	 * @var Fingerprint
+	 */
+	public Fingerprint $fingerprint;
+
+	/**
+	 * Receiver state fingerprints.
+	 *
+	 * @var State_Fingerprint
+	 */
+	public State_Fingerprint $state;
+
+	/**
+	 * Sync state store.
+	 *
+	 * @var Sync_State
+	 */
+	public Sync_State $sync;
 }
