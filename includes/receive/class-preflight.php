@@ -122,4 +122,72 @@ final class Preflight {
 			'warnings' => $warnings,
 		);
 	}
+
+	/**
+	 * Language checks.
+	 *
+	 * @param Bundle   $bundle   Bundle.
+	 * @param string[] $blockers Blockers, appended to.
+	 */
+	private function check_languages( Bundle $bundle, array &$blockers ): void {
+		$languages = array();
+		foreach ( $bundle->objects() as $record ) {
+			if ( is_string( $record['language'] ?? null ) ) {
+				$languages[ $record['language'] ] = true;
+			}
+		}
+		if ( array() === $languages ) {
+			return;
+		}
+
+		$adapter = $this->context->language;
+		if ( 'none' === $adapter->id() ) {
+			$blockers[] = sprintf( 'The page has language versions (%s) but this site has no multilingual plugin.', implode( ', ', array_keys( $languages ) ) );
+			return;
+		}
+
+		$active = $adapter->active_languages();
+		foreach ( array_keys( $languages ) as $language ) {
+			if ( ! in_array( $language, $active, true ) ) {
+				$blockers[] = sprintf( 'Language "%s" is not active on this site.', $language );
+			}
+		}
+
+		$source_default = $bundle->manifest['source']['language']['default'] ?? null;
+		if ( is_string( $source_default ) && $adapter->default_language() !== $source_default ) {
+			$blockers[] = sprintf( 'The default language is "%1$s" here and "%2$s" on the sender.', (string) $adapter->default_language(), $source_default );
+		}
+	}
+
+	/**
+	 * Transaction support and disk space.
+	 *
+	 * @param Bundle   $bundle   Bundle.
+	 * @param string[] $blockers Blockers, appended to.
+	 */
+	private function check_storage( Bundle $bundle, array &$blockers ): void {
+		global $wpdb;
+
+		$tables = array();
+		foreach ( self::TRANSACTIONAL_TABLES as $table ) {
+			$tables[] = $wpdb->prefix . $table;
+		}
+
+		// phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery,WordPress.DB.DirectDatabaseQuery.NoCaching,WordPress.DB.PreparedSQLPlaceholders.UnfinishedPrepare -- Placeholders are generated for each table.
+		$engines = $wpdb->get_results( $wpdb->prepare( 'SELECT TABLE_NAME AS name, ENGINE AS engine FROM information_schema.TABLES WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME IN (' . implode( ',', array_fill( 0, count( $tables ), '%s' ) ) . ')', $tables ), ARRAY_A );
+		foreach ( (array) $engines as $row ) {
+			if ( 'InnoDB' !== $row['engine'] ) {
+				$blockers[] = sprintf( 'Table %1$s uses %2$s; relaying needs InnoDB for an atomic commit.', $row['name'], $row['engine'] );
+			}
+		}
+
+		$bytes = 0;
+		foreach ( $bundle->objects() as $record ) {
+			$bytes += (int) ( $record['file']['bytes'] ?? 0 );
+		}
+		$free = function_exists( 'disk_free_space' ) ? disk_free_space( $this->context->uploads_dir ) : false;
+		if ( false !== $free && $free < 3 * $bytes ) {
+			$blockers[] = sprintf( 'Not enough disk space in uploads: %1$s free, %2$s needed.', size_format( (int) $free ), size_format( 3 * $bytes ) );
+		}
+	}
 }
