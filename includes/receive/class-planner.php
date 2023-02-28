@@ -240,4 +240,75 @@ final class Planner {
 			$this->edit_lock_warning( (int) $found['id'], $label, $warnings );
 		}
 	}
+
+	/**
+	 * Receiver ids of the objects an owned object references, as they resolve right now.
+	 *
+	 * @param array<string, mixed> $record Manifest object.
+	 * @return array<string, int|string> Key => receiver id, or `new` when it will be created.
+	 */
+	private function resolved( array $record ): array {
+		$resolved = array();
+		foreach ( State_Fingerprint::ref_keys( $record ) as $key ) {
+			if ( isset( $this->absent[ $key ] ) ) {
+				$resolved[ $key ] = 0;
+				continue;
+			}
+			$resolved[ $key ] = isset( $this->new_keys[ $key ] ) ? 'new' : ( $this->matches[ $key ]['id'] ?? 'new' );
+		}
+
+		return $resolved;
+	}
+
+	/**
+	 * Records that an attachment's file must be transferred.
+	 *
+	 * @param array<string, mixed> $record   Manifest attachment.
+	 * @param string               $label    Label.
+	 * @param string[]             $files    Files needed, appended to.
+	 * @param string[]             $blockers Blockers, appended to.
+	 * @param Bundle               $bundle   Bundle.
+	 */
+	private function need_file( array $record, string $label, array &$files, array &$blockers, Bundle $bundle ): void {
+		$sha1    = (string) $record['file']['sha1'];
+		$files[] = $sha1;
+		if ( null === $bundle->file_path( $sha1 ) ) {
+			$blockers[] = sprintf( 'The file for %s is not in the bundle.', $label );
+		}
+	}
+
+	/**
+	 * Warns when someone is editing a post right now.
+	 *
+	 * @param int      $post_id  Post id.
+	 * @param string   $label    Object label.
+	 * @param string[] $warnings Warnings, appended to.
+	 */
+	private function edit_lock_warning( int $post_id, string $label, array &$warnings ): void {
+		$lock = (string) get_post_meta( $post_id, '_edit_lock', true );
+		$time = (int) strtok( $lock, ':' );
+		if ( $time > 0 && time() - $time < self::EDIT_LOCK_SECONDS ) {
+			$warnings[] = sprintf( '%s is being edited on this site right now.', $label );
+		}
+	}
+
+	/**
+	 * Human label for an object.
+	 *
+	 * @param array<string, mixed> $record Manifest object.
+	 */
+	private function label( array $record ): string {
+		$language = is_string( $record['language'] ?? null ) ? ' [' . $record['language'] . ']' : '';
+
+		switch ( $record['kind'] ) {
+			case 'user':
+				return 'User ' . $record['login'];
+			case 'term':
+				return sprintf( 'Term %1$s/%2$s%3$s', $record['taxonomy'], $record['slug'], $language );
+			case 'attachment':
+				return sprintf( 'Attachment %1$s%2$s', $record['file']['relative'] ?? $record['title'], $language );
+			default:
+				return sprintf( '%1$s /%2$s/%3$s', ucfirst( (string) $record['post_type'] ), $record['path'], $language );
+		}
+	}
 }
