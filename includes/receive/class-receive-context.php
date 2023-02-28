@@ -78,4 +78,61 @@ final class Receive_Context {
 	 * @var Sync_State
 	 */
 	public Sync_State $sync;
+
+	/**
+	 * Receiver home URL without trailing slash.
+	 *
+	 * @var string
+	 */
+	public string $home_url;
+
+	/**
+	 * Receiver uploads base URL without trailing slash.
+	 *
+	 * @var string
+	 */
+	public string $uploads_url;
+
+	/**
+	 * Receiver uploads base directory without trailing slash.
+	 *
+	 * @var string
+	 */
+	public string $uploads_dir;
+
+	/**
+	 * Constructor.
+	 *
+	 * @param Adapter $language Language adapter.
+	 */
+	public function __construct( Adapter $language ) {
+		$uploads = wp_get_upload_dir();
+
+		$this->language    = $language;
+		$this->uuid        = new Uuid();
+		$this->scanner     = new Block_Scanner();
+		$this->codec       = new Attributes_Codec();
+		$this->editor      = new Content_Editor( $this->scanner, $this->codec );
+		$this->fingerprint = new Fingerprint();
+		$this->state       = new State_Fingerprint( $this->fingerprint, $language );
+		$this->sync        = new Sync_State();
+		$this->home_url    = untrailingslashit( (string) get_option( 'home' ) );
+		$this->uploads_url = untrailingslashit( (string) $uploads['baseurl'] );
+		$this->uploads_dir = untrailingslashit( (string) $uploads['basedir'] );
+	}
+
+	/**
+	 * SHA-1 of the file an attachment was uploaded as (the original, not the scaled copy).
+	 *
+	 * @param int $attachment_id Attachment id.
+	 * @return string|null Null when the file is missing.
+	 */
+	public function attachment_sha1( int $attachment_id ): ?string {
+		$path = wp_get_original_image_path( $attachment_id );
+		if ( ! is_string( $path ) ) {
+			$path = get_attached_file( $attachment_id, true );
+		}
+
+		return is_string( $path ) && is_readable( $path ) ? (string) sha1_file( $path ) : null;
+	}
 }
