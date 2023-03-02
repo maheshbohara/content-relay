@@ -319,4 +319,54 @@ final class Applier {
 
 		return $created;
 	}
+
+	/**
+	 * Links written posts and attachments to their translation groups, originals first.
+	 *
+	 * @param array<string, int>                  $written Written key => id.
+	 * @param array<string, array<string, mixed>> $objects Manifest objects.
+	 * @param array<string, int>                  $ids     Id map.
+	 */
+	private function link_languages( array $written, array $objects, array $ids ): void {
+		$ordered = $written;
+		uksort(
+			$ordered,
+			static function ( string $a, string $b ) use ( $objects ): int {
+				return ( null === ( $objects[ $a ]['source_language'] ?? null ) ? 0 : 1 ) <=> ( null === ( $objects[ $b ]['source_language'] ?? null ) ? 0 : 1 );
+			}
+		);
+
+		foreach ( $ordered as $key => $post_id ) {
+			$record   = $objects[ $key ];
+			$language = $record['language'] ?? null;
+			if ( ! is_string( $language ) ) {
+				continue;
+			}
+
+			$original_id = null;
+			$source      = $record['source_language'] ?? null;
+			if ( is_string( $source ) ) {
+				$original_key = $record['translations'][ $source ] ?? null;
+				$original_id  = is_string( $original_key ) ? ( $ids[ $original_key ] ?? null ) : null;
+			}
+
+			$this->context->language->link_post( $post_id, $language, $original_id );
+		}
+	}
+
+	/**
+	 * Receiver ids of the objects an owned object references, after this relay.
+	 *
+	 * @param array<string, mixed> $record Manifest object.
+	 * @param array<string, int>   $ids    Id map.
+	 * @return array<string, int|string>
+	 */
+	private function resolved( array $record, array $ids ): array {
+		$resolved = array();
+		foreach ( State_Fingerprint::ref_keys( $record ) as $key ) {
+			$resolved[ $key ] = $ids[ $key ] ?? 'new';
+		}
+
+		return $resolved;
+	}
 }
