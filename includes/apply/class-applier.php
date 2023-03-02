@@ -276,4 +276,47 @@ final class Applier {
 
 		return $result;
 	}
+
+	/**
+	 * Creates missing terms, parents before children.
+	 *
+	 * @param array<string, array<string, mixed>> $items   Plan items by key.
+	 * @param array<string, array<string, mixed>> $objects Manifest objects.
+	 * @param array<string, int>                  $ids     Id map, extended.
+	 * @return int[] Created term ids.
+	 *
+	 * @throws Apply_Exception When a term cannot be created.
+	 */
+	private function create_terms( array $items, array $objects, array &$ids ): array {
+		$pending = array();
+		foreach ( $items as $key => $item ) {
+			if ( 'term' === $item['kind'] && 'create' === $item['action'] ) {
+				$pending[ $key ] = $objects[ $key ];
+			}
+		}
+
+		$writer  = new Term_Writer( $this->context );
+		$created = array();
+		while ( array() !== $pending ) {
+			$progress = false;
+			foreach ( $pending as $key => $record ) {
+				$parent = $record['parent'] ?? null;
+				if ( is_string( $parent ) && ! isset( $ids[ $parent ] ) ) {
+					continue;
+				}
+				$original_key = is_string( $record['source_language'] ?? null ) ? ( $record['translations'][ $record['source_language'] ] ?? null ) : null;
+				$ids[ $key ]  = $writer->create( $record, is_string( $parent ) ? $ids[ $parent ] : 0, is_string( $original_key ) ? ( $ids[ $original_key ] ?? null ) : null, $ids );
+				$created[]    = $ids[ $key ];
+				unset( $pending[ $key ] );
+				$progress = true;
+			}
+			if ( ! $progress ) {
+				throw new Apply_Exception( esc_html( 'Term parents cannot be resolved: ' . implode( ', ', array_keys( $pending ) ) ) );
+			}
+		}
+
+		$this->warnings = array_merge( $this->warnings, $writer->warnings() );
+
+		return $created;
+	}
 }
