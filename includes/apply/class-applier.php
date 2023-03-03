@@ -528,4 +528,45 @@ final class Applier {
 
 		return $terms;
 	}
+
+	/**
+	 * GUID for a new post.
+	 *
+	 * @param string $post_type Post type.
+	 * @param int    $post_id   Post id.
+	 */
+	private function guid( string $post_type, int $post_id ): string {
+		return $this->context->home_url . '/?' . ( 'page' === $post_type ? 'page_id' : 'p' ) . '=' . $post_id;
+	}
+
+	/**
+	 * Result rows for written objects, with public URLs in each object's language.
+	 *
+	 * @param array<string, int>                  $written Written key => id.
+	 * @param array<string, array<string, mixed>> $items   Plan items.
+	 * @param array<string, array<string, mixed>> $objects Manifest objects.
+	 * @return array<int, array<string, mixed>>
+	 */
+	private function describe( array $written, array $items, array $objects ): array {
+		$rows = array();
+		foreach ( $written as $key => $post_id ) {
+			$language = $objects[ $key ]['language'] ?? null;
+			if ( is_string( $language ) ) {
+				$this->context->language->switch_to( $language );
+			}
+			$url = 'attachment' === $objects[ $key ]['kind'] ? wp_get_attachment_url( $post_id ) : get_permalink( $post_id );
+			if ( is_string( $language ) ) {
+				$this->context->language->restore();
+			}
+
+			$rows[] = array(
+				'key'    => $key,
+				'action' => $items[ $key ]['action'],
+				'id'     => $post_id,
+				'url'    => is_string( $url ) ? $url : '',
+			);
+		}
+
+		return $rows;
+	}
 }
