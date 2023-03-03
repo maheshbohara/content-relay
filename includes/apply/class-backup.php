@@ -67,4 +67,59 @@ final class Backup {
 			)
 		);
 	}
+
+	/**
+	 * Stores a session record (plan, result, created objects).
+	 *
+	 * @param string               $session Session id.
+	 * @param array<string, mixed> $record  Record.
+	 * @return string File path.
+	 *
+	 * @throws Apply_Exception When the record cannot be written.
+	 */
+	public function record_session( string $session, array $record ): string {
+		return $this->write( 'sessions', $session, $record );
+	}
+
+	/**
+	 * Adds fields to an existing session record.
+	 *
+	 * @param string               $session Session id.
+	 * @param array<string, mixed> $changes Fields to add or replace.
+	 *
+	 * @throws Apply_Exception When the record cannot be read or written.
+	 */
+	public function mark_session( string $session, array $changes ): void {
+		$this->record_session( $session, array_merge( $this->read( 'sessions', $session ), $changes ) );
+	}
+
+	/**
+	 * Reads a backup or session record.
+	 *
+	 * @param string $subdirectory `backups` or `sessions`.
+	 * @param string $session      Session id.
+	 * @return array<string, mixed>
+	 *
+	 * @throws Apply_Exception When the record does not exist or cannot be decoded.
+	 */
+	public function read( string $subdirectory, string $session ): array {
+		if ( ! Uuid::is_valid( $session ) ) {
+			throw new Apply_Exception( 'That is not a relay session id.' );
+		}
+
+		$path = $this->path( $subdirectory, $session );
+		if ( ! is_readable( $path ) ) {
+			throw new Apply_Exception( esc_html( sprintf( 'No %1$s record for session %2$s on this site.', $subdirectory, $session ) ) );
+		}
+
+		// phpcs:ignore WordPress.WP.AlternativeFunctions.file_get_contents_file_get_contents -- Local file inside uploads.
+		$raw  = file_get_contents( $path );
+		$json = false === $raw ? false : gzdecode( $raw );
+		$data = false === $json ? null : json_decode( $json, true );
+		if ( ! is_array( $data ) ) {
+			throw new Apply_Exception( esc_html( sprintf( 'The %1$s record for session %2$s is unreadable.', $subdirectory, $session ) ) );
+		}
+
+		return $data;
+	}
 }
