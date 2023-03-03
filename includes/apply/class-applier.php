@@ -477,4 +477,55 @@ final class Applier {
 
 		return $warnings;
 	}
+
+	/**
+	 * Public addresses of written posts (not attachments), for page-cache purging.
+	 *
+	 * @param array<int, array<string, mixed>>    $described Result rows.
+	 * @param array<string, array<string, mixed>> $objects   Manifest objects.
+	 * @return string[]
+	 */
+	private function post_urls( array $described, array $objects ): array {
+		$urls = array();
+		foreach ( $described as $row ) {
+			if ( 'post' === ( $objects[ $row['key'] ]['kind'] ?? '' ) && '' !== $row['url'] ) {
+				$urls[] = (string) $row['url'];
+			}
+		}
+
+		return $urls;
+	}
+
+	/**
+	 * Receiver author for an object.
+	 *
+	 * @param array<string, mixed> $record Manifest object.
+	 * @param array<string, int>   $ids    Id map.
+	 */
+	private function author_id( array $record, array $ids ): int {
+		$author = $record['author'] ?? null;
+
+		return is_string( $author ) && isset( $ids[ $author ] ) ? $ids[ $author ] : 0;
+	}
+
+	/**
+	 * Receiver term ids by taxonomy.
+	 *
+	 * @param array<string, mixed> $record Manifest object.
+	 * @param array<string, int>   $ids    Id map.
+	 * @return array<string, int[]>
+	 */
+	private function term_ids( array $record, array $ids ): array {
+		$terms = array();
+		foreach ( (array) ( $record['terms'] ?? array() ) as $taxonomy => $keys ) {
+			foreach ( (array) $keys as $key ) {
+				// Absent terms map to 0: they were dropped on the sender, so they are not assigned here.
+				if ( isset( $ids[ $key ] ) && $ids[ $key ] > 0 ) {
+					$terms[ (string) $taxonomy ][] = $ids[ $key ];
+				}
+			}
+		}
+
+		return $terms;
+	}
 }
