@@ -122,4 +122,53 @@ final class Backup {
 
 		return $data;
 	}
+
+	/**
+	 * Path of a record.
+	 *
+	 * @param string $subdirectory `backups` or `sessions`.
+	 * @param string $session      Session id.
+	 */
+	private function path( string $subdirectory, string $session ): string {
+		return $this->context->uploads_dir . '/content-relay/' . $subdirectory . '/' . $session . '.json.gz';
+	}
+
+	/**
+	 * Writes gzipped JSON into a protected subdirectory of uploads/content-relay.
+	 *
+	 * @param string               $subdirectory `backups` or `sessions`.
+	 * @param string               $session      Session id.
+	 * @param array<string, mixed> $data         Data.
+	 * @return string File path.
+	 *
+	 * @throws Apply_Exception When writing fails.
+	 */
+	private function write( string $subdirectory, string $session, array $data ): string {
+		$root      = $this->context->uploads_dir . '/content-relay';
+		$directory = $root . '/' . $subdirectory;
+		if ( ! wp_mkdir_p( $directory ) ) {
+			throw new Apply_Exception( esc_html( sprintf( 'Cannot create %s.', $directory ) ) );
+		}
+
+		$guards = array(
+			$root . '/index.php'      => "<?php\n// Silence is golden.\n",
+			$root . '/.htaccess'      => "Require all denied\n",
+			$directory . '/index.php' => "<?php\n// Silence is golden.\n",
+		);
+		foreach ( $guards as $guard => $contents ) {
+			if ( ! file_exists( $guard ) ) {
+				// phpcs:ignore WordPress.WP.AlternativeFunctions.file_system_operations_file_put_contents -- Writes inside uploads during a relay; WP_Filesystem may require credentials that a REST/CLI request cannot supply.
+				file_put_contents( $guard, $contents );
+			}
+		}
+
+		$path    = $this->path( $subdirectory, $session );
+		$encoded = gzencode( (string) wp_json_encode( $data, JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE ) );
+		// phpcs:ignore WordPress.WP.AlternativeFunctions.file_system_operations_file_put_contents -- See above.
+		if ( false === $encoded || false === file_put_contents( $path, $encoded ) ) {
+			throw new Apply_Exception( esc_html( sprintf( 'Cannot write %s.', $path ) ) );
+		}
+
+		return $path;
+	}
 }
