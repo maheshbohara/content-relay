@@ -39,4 +39,54 @@ final class Media_Writer {
 	 * @var Bundle
 	 */
 	private Bundle $bundle;
+
+	/**
+	 * Row writer.
+	 *
+	 * @var Post_Writer
+	 */
+	private Post_Writer $writer;
+
+	/**
+	 * Session id.
+	 *
+	 * @var string
+	 */
+	private string $session;
+
+	/**
+	 * Files placed this session: SHA-1 => attached file meta and attachment metadata.
+	 *
+	 * @var array<string, array{attached: string, metadata: string}>
+	 */
+	private array $placed = array();
+
+	/**
+	 * Absolute paths of files created this session.
+	 *
+	 * @var string[]
+	 */
+	private array $created_files = array();
+
+	/**
+	 * Attachment ids created this session.
+	 *
+	 * @var int[]
+	 */
+	private array $created_ids = array();
+
+	/**
+	 * Constructor.
+	 *
+	 * @param Receive_Context $context Receiver context.
+	 * @param Bundle          $bundle  Bundle.
+	 * @param Post_Writer     $writer  Row writer.
+	 * @param string          $session Session id.
+	 */
+	public function __construct( Receive_Context $context, Bundle $bundle, Post_Writer $writer, string $session ) {
+		$this->context = $context;
+		$this->bundle  = $bundle;
+		$this->writer  = $writer;
+		$this->session = $session;
+	}
 }
