@@ -369,4 +369,62 @@ final class Applier {
 
 		return $resolved;
 	}
+
+	/**
+	 * Receiver ids of translations that exist here but are not part of this relay, with their content hashes.
+	 *
+	 * @param array<string, array<string, mixed>> $items Plan items.
+	 * @param array<string, int>                  $ids   Id map.
+	 * @return array<int, string> Post id => md5 of content.
+	 */
+	private function untouched_twins( array $items, array $ids ): array {
+		$relayed = array();
+		foreach ( $items as $key => $item ) {
+			if ( 'owned' === $item['role'] && isset( $ids[ $key ] ) ) {
+				$relayed[ $ids[ $key ] ] = true;
+			}
+		}
+
+		$twins = array();
+		foreach ( array_keys( $relayed ) as $post_id ) {
+			foreach ( $this->context->language->post_translations( $post_id ) as $twin_id ) {
+				if ( ! isset( $relayed[ $twin_id ] ) ) {
+					$twins[ $twin_id ] = md5( (string) get_post_field( 'post_content', $twin_id, 'raw' ) );
+				}
+			}
+		}
+
+		return $twins;
+	}
+
+	/**
+	 * Verifies stored content and untouched translations.
+	 *
+	 * @param array<string, int>    $written  Written key => id.
+	 * @param array<string, string> $expected Key => md5 of the content that should be stored.
+	 * @param array<int, string>    $twins    Untouched twin id => md5 before the relay.
+	 * @return string[] Problems.
+	 */
+	private function integrity( array $written, array $expected, array $twins ): array {
+		global $wpdb;
+
+		$problems = array();
+		foreach ( $written as $key => $post_id ) {
+			// phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery,WordPress.DB.DirectDatabaseQuery.NoCaching -- Verifies the stored bytes.
+			$stored = (string) $wpdb->get_var( $wpdb->prepare( "SELECT post_content FROM {$wpdb->posts} WHERE ID = %d", $post_id ) );
+			if ( md5( $stored ) !== $expected[ $key ] ) {
+				$problems[] = sprintf( 'Stored content of %1$s (post %2$d) differs from what was written.', $key, $post_id );
+			}
+		}
+
+		foreach ( $twins as $twin_id => $hash ) {
+			// phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery,WordPress.DB.DirectDatabaseQuery.NoCaching -- Verifies the stored bytes.
+			$stored = (string) $wpdb->get_var( $wpdb->prepare( "SELECT post_content FROM {$wpdb->posts} WHERE ID = %d", $twin_id ) );
+			if ( md5( $stored ) !== $hash ) {
+				$problems[] = sprintf( 'Translation %d, which was not part of this relay, changed during it.', $twin_id );
+			}
+		}
+
+		return $problems;
+	}
 }
