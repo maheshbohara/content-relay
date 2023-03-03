@@ -427,4 +427,54 @@ final class Applier {
 
 		return $problems;
 	}
+
+	/**
+	 * Receiver parent of an attachment ("Uploaded to"): the relayed parent when this relay knows it, otherwise the
+	 * attachment's current parent here, or none for a new attachment.
+	 *
+	 * @param array<string, mixed> $record  Manifest attachment.
+	 * @param array<string, mixed> $item    Plan item.
+	 * @param int                  $post_id Receiver attachment id.
+	 * @param array<string, int>   $ids     Id map.
+	 */
+	private function attachment_parent( array $record, array $item, int $post_id, array $ids ): int {
+		$parent = $record['upload_parent'] ?? null;
+		if ( is_string( $parent ) && isset( $ids[ $parent ] ) ) {
+			return $ids[ $parent ];
+		}
+
+		return in_array( $item['action'], self::NEW_FILE_ACTIONS, true ) ? 0 : (int) get_post_field( 'post_parent', $post_id, 'raw' );
+	}
+
+	/**
+	 * Runs the query-dependency checks a theme declares for each written post, in the post's language.
+	 *
+	 * @param array<string, int>                  $written Written key => id.
+	 * @param array<string, array<string, mixed>> $items   Plan items.
+	 * @param array<string, array<string, mixed>> $objects Manifest objects.
+	 * @return string[] Warnings.
+	 */
+	private function query_dependencies( array $written, array $items, array $objects ): array {
+		$warnings = array();
+		foreach ( $written as $key => $post_id ) {
+			$post = get_post( $post_id );
+			if ( 'post' !== $objects[ $key ]['kind'] || ! $post instanceof \WP_Post ) {
+				continue;
+			}
+
+			$language = $objects[ $key ]['language'] ?? null;
+			if ( is_string( $language ) ) {
+				$this->context->language->switch_to( $language );
+			}
+			try {
+				$warnings = array_merge( $warnings, Query_Dependencies::check( $post, (string) $items[ $key ]['label'] ) );
+			} finally {
+				if ( is_string( $language ) ) {
+					$this->context->language->restore();
+				}
+			}
+		}
+
+		return $warnings;
+	}
 }
