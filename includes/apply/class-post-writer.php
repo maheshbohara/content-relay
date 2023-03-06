@@ -116,4 +116,44 @@ final class Post_Writer {
 			throw new Apply_Exception( esc_html( sprintf( 'Could not write post %1$d: %2$s', $post_id, $wpdb->last_error ) ) );
 		}
 	}
+
+	/**
+	 * Replaces a post's meta with manifest meta, keeping keys this site owns.
+	 *
+	 * @param int                     $post_id       Post id.
+	 * @param array<string, string[]> $meta          Rewritten raw meta.
+	 * @param bool                    $is_attachment Whether the post is an attachment.
+	 *
+	 * @throws Apply_Exception When a write fails.
+	 */
+	public function replace_meta( int $post_id, array $meta, bool $is_attachment ): void {
+		global $wpdb;
+
+		$kept = Exporter::denied_meta();
+		if ( $is_attachment ) {
+			$kept = array_merge( $kept, self::ATTACHMENT_META );
+		}
+
+		// phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery,WordPress.DB.DirectDatabaseQuery.NoCaching -- Reads the rows being replaced in this transaction.
+		$rows = $wpdb->get_results( $wpdb->prepare( "SELECT meta_id, meta_key FROM {$wpdb->postmeta} WHERE post_id = %d", $post_id ), ARRAY_A );
+		foreach ( (array) $rows as $row ) {
+			$meta_key = (string) $row['meta_key'];
+			if ( in_array( $meta_key, $kept, true ) || 0 === strpos( $meta_key, '_content_relay_' ) || 0 === strpos( $meta_key, '_wp_trash_meta_' ) ) {
+				continue;
+			}
+			// phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery,WordPress.DB.DirectDatabaseQuery.NoCaching -- Direct meta writes avoid WPML custom-field sync onto translations.
+			if ( false === $wpdb->delete( $wpdb->postmeta, array( 'meta_id' => (int) $row['meta_id'] ) ) ) {
+				throw new Apply_Exception( esc_html( sprintf( 'Could not remove meta of post %d.', $post_id ) ) );
+			}
+		}
+
+		foreach ( $meta as $meta_key => $values ) {
+			if ( in_array( (string) $meta_key, $kept, true ) ) {
+				continue;
+			}
+			foreach ( $values as $value ) {
+				$this->add_meta( $post_id, (string) $meta_key, (string) $value );
+			}
+		}
+	}
 }
