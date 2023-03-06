@@ -125,4 +125,67 @@ final class Page_Cache {
 		 */
 		return (array) apply_filters( 'content_relay_page_cache_integrations', $integrations );
 	}
+
+	/**
+	 * Purges every active integration for the given URLs and posts.
+	 *
+	 * @param string[] $urls     Public URLs that changed.
+	 * @param int[]    $post_ids Posts that changed.
+	 * @return array{purged: string[], problems: string[]} Integrations that ran, and failures (never thrown).
+	 */
+	public function purge( array $urls, array $post_ids ): array {
+		$urls     = array_values(
+			array_unique(
+				array_filter(
+					array_map( 'strval', $urls ),
+					static function ( string $url ): bool {
+						return '' !== $url;
+					}
+				)
+			)
+		);
+		$post_ids = array_values( array_unique( array_filter( array_map( 'intval', $post_ids ) ) ) );
+		$result   = array(
+			'purged'   => array(),
+			'problems' => array(),
+		);
+
+		foreach ( $this->integrations as $name => $integration ) {
+			if ( ! is_array( $integration ) || ! isset( $integration['available'], $integration['purge'] ) || ! is_callable( $integration['available'] ) || ! is_callable( $integration['purge'] ) ) {
+				continue;
+			}
+
+			try {
+				if ( true !== call_user_func( $integration['available'] ) ) {
+					continue;
+				}
+				call_user_func( $integration['purge'], $urls, $post_ids );
+				$result['purged'][] = (string) $name;
+			} catch ( \Throwable $e ) {
+				$result['problems'][] = sprintf( 'Purging the %1$s page cache failed: %2$s', (string) $name, $e->getMessage() );
+			}
+		}
+
+		/**
+		 * Fires after Content Relay purged page caches, for cache layers it does not know (a CDN, a reverse proxy).
+		 *
+		 * @param string[] $urls     Public URLs that changed.
+		 * @param int[]    $post_ids Posts that changed.
+		 */
+		do_action( 'content_relay_purge_page_cache', $urls, $post_ids );
+
+		return $result;
+	}
+
+	/**
+	 * Calls a cache plugin's function by name when it exists.
+	 *
+	 * @param string $function_name Function name.
+	 * @param mixed  ...$args       Arguments.
+	 */
+	private static function call( string $function_name, ...$args ): void {
+		if ( is_callable( $function_name ) ) {
+			$function_name( ...$args );
+		}
+	}
 }
