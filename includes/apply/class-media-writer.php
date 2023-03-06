@@ -89,4 +89,81 @@ final class Media_Writer {
 		$this->writer  = $writer;
 		$this->session = $session;
 	}
+
+	/**
+	 * Creates an attachment: places its file (once per SHA-1), inserts its row and generates its metadata.
+	 *
+	 * Fields, content and meta are written later, inside the content commit.
+	 *
+	 * @param array<string, mixed> $record Manifest attachment.
+	 * @param Url_Map              $urls   URL map; receives renames.
+	 * @return int Attachment id.
+	 *
+	 * @throws Apply_Exception When the file cannot be placed.
+	 */
+	public function create( array $record, Url_Map $urls ): int {
+		$file = (array) $record['file'];
+		$sha1 = (string) $file['sha1'];
+
+		$attachment_id       = $this->writer->reserve( 'attachment' );
+		$this->created_ids[] = $attachment_id;
+		$this->writer->add_meta( $attachment_id, self::PENDING_META, $this->session );
+
+		if ( isset( $this->placed[ $sha1 ] ) ) {
+			$this->writer->add_meta( $attachment_id, '_wp_attached_file', $this->placed[ $sha1 ]['attached'] );
+			$this->writer->add_meta( $attachment_id, '_wp_attachment_metadata', $this->placed[ $sha1 ]['metadata'] );
+			return $attachment_id;
+		}
+
+		$source    = (string) $file['source'];
+		$directory = dirname( $source );
+		$directory = '.' === $directory ? '' : $directory;
+		$absolute  = $this->context->uploads_dir . ( '' === $directory ? '' : '/' . $directory );
+
+		if ( ! wp_mkdir_p( $absolute ) ) {
+			throw new Apply_Exception( esc_html( sprintf( 'Cannot create uploads directory %s.', $directory ) ) );
+		}
+
+		$name   = wp_basename( $source );
+		$target = $absolute . '/' . $name;
+		$reuse  = file_exists( $target ) && sha1_file( $target ) === $sha1;
+		if ( file_exists( $target ) && ! $reuse ) {
+			$name   = wp_unique_filename( $absolute, $name );
+			$target = $absolute . '/' . $name;
+		}
+
+		$before = $this->listing( $absolute );
+
+		if ( ! $reuse ) {
+			$from = $this->bundle->file_path( $sha1 );
+			if ( null === $from || ! copy( $from, $target ) || sha1_file( $target ) !== $sha1 ) {
+				throw new Apply_Exception( esc_html( sprintf( 'Could not place file %s.', $source ) ) );
+			}
+		}
+
+		$placed = ( '' === $directory ? '' : $directory . '/' ) . $name;
+		$urls->add_rename( $source, $placed );
+		$this->writer->add_meta( $attachment_id, '_wp_attached_file', $placed );
+
+		require_once ABSPATH . 'wp-admin/includes/image.php';
+		if ( 0 === strpos( (string) $file['mime'], 'image/' ) && file_is_displayable_image( $target ) ) {
+			wp_create_image_subsizes( $target, $attachment_id );
+		} else {
+			wp_update_attachment_metadata( $attachment_id, wp_generate_attachment_metadata( $attachment_id, $target ) );
+		}
+
+		$this->created_files = array_merge( $this->created_files, array_diff( $this->listing( $absolute ), $before ) );
+
+		$attached = (string) get_post_meta( $attachment_id, '_wp_attached_file', true );
+		if ( $attached !== $placed && '' !== $attached ) {
+			$urls->add_rename( (string) $file['relative'], $attached );
+		}
+
+		$this->placed[ $sha1 ] = array(
+			'attached' => $attached,
+			'metadata' => (string) maybe_serialize( wp_get_attachment_metadata( $attachment_id, true ) ),
+		);
+
+		return $attachment_id;
+	}
 }
