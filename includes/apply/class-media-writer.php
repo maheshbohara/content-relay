@@ -166,4 +166,64 @@ final class Media_Writer {
 
 		return $attachment_id;
 	}
+
+	/**
+	 * GUID for a created attachment: the URL of its file.
+	 *
+	 * @param int $attachment_id Attachment id.
+	 */
+	public function guid( int $attachment_id ): string {
+		$original = wp_get_original_image_url( $attachment_id );
+
+		return is_string( $original ) ? $original : (string) wp_get_attachment_url( $attachment_id );
+	}
+
+	/**
+	 * Ids of attachments created this session.
+	 *
+	 * @return int[]
+	 */
+	public function created_ids(): array {
+		return $this->created_ids;
+	}
+
+	/**
+	 * Absolute paths of files created this session.
+	 *
+	 * @return string[]
+	 */
+	public function created_files(): array {
+		return $this->created_files;
+	}
+
+	/**
+	 * Removes the attachments and files this session created.
+	 */
+	public function cleanup(): void {
+		foreach ( $this->created_ids as $attachment_id ) {
+			$this->writer->delete( $attachment_id );
+		}
+		foreach ( $this->created_files as $path ) {
+			wp_delete_file( $path );
+		}
+		$this->created_ids   = array();
+		$this->created_files = array();
+	}
+
+	/**
+	 * Absolute paths of the files in a directory.
+	 *
+	 * @param string $directory Directory.
+	 * @return string[]
+	 */
+	private function listing( string $directory ): array {
+		$paths = array();
+		foreach ( (array) scandir( $directory ) as $entry ) {
+			if ( '.' !== $entry && '..' !== $entry && is_file( $directory . '/' . $entry ) ) {
+				$paths[] = $directory . '/' . $entry;
+			}
+		}
+
+		return $paths;
+	}
 }
