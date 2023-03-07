@@ -176,4 +176,38 @@ final class Rewriter {
 
 		return $this->urls->rewrite( $html );
 	}
+
+	/**
+	 * Rewrites a raw meta value, keeping it serialized when it was.
+	 *
+	 * @param string               $raw      Stored meta value.
+	 * @param array<string, mixed> $location Location.
+	 */
+	private function meta_value( string $raw, array $location ): string {
+		$value    = maybe_unserialize( $raw );
+		$path     = (array) ( $location['path'] ?? array() );
+		$modified = Value_Path::set( $value, $path, $this->transform( Value_Path::get( $value, $path ), $location ) );
+
+		if ( is_serialized( $raw ) ) {
+			return (string) maybe_serialize( $modified );
+		}
+
+		return is_scalar( $modified ) ? (string) $modified : $raw;
+	}
+
+	/**
+	 * Ensures every id reference of a location resolved to a receiver object.
+	 *
+	 * @param array<string, mixed> $location Location.
+	 * @param string               $key      Object key, for the message.
+	 *
+	 * @throws Apply_Exception When a reference is unresolved.
+	 */
+	private function assert_refs( array $location, string $key ): void {
+		foreach ( (array) ( $location['refs'] ?? array() ) as $ref ) {
+			if ( ! isset( $this->ids[ $ref ] ) ) {
+				throw new Apply_Exception( esc_html( sprintf( '%1$s references %2$s, which has no object on this site.', $key, (string) $ref ) ) );
+			}
+		}
+	}
 }
