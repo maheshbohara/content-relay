@@ -45,4 +45,38 @@ final class Query_Dependencies {
 
 		return self::run( (array) $dependencies, $post, $label );
 	}
+
+	/**
+	 * Runs declared checks.
+	 *
+	 * @param array<int|string, mixed> $dependencies Declared dependencies.
+	 * @param mixed                    $subject      Value handed to each check (the receiver post).
+	 * @param string                   $label        How the post is named in warnings.
+	 * @return string[] Warnings.
+	 */
+	public static function run( array $dependencies, $subject, string $label ): array {
+		$warnings = array();
+
+		foreach ( $dependencies as $dependency ) {
+			if ( ! is_array( $dependency ) || ! isset( $dependency['check'] ) || ! is_callable( $dependency['check'] ) ) {
+				$warnings[] = sprintf( '%s: a query dependency is malformed; it needs a label and a check callable.', $label );
+				continue;
+			}
+
+			$name = is_string( $dependency['label'] ?? null ) && '' !== trim( $dependency['label'] ) ? trim( $dependency['label'] ) : 'Unnamed dependency';
+
+			try {
+				$found = true === call_user_func( $dependency['check'], $subject );
+			} catch ( \Throwable $e ) {
+				$warnings[] = sprintf( '%1$s: checking "%2$s" failed: %3$s', $label, $name, $e->getMessage() );
+				continue;
+			}
+
+			if ( ! $found ) {
+				$warnings[] = sprintf( '%1$s: "%2$s" found nothing on this site. Content Relay does not relay content a page lists by query; add it here.', $label, $name );
+			}
+		}
+
+		return $warnings;
+	}
 }
