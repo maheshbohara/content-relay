@@ -156,4 +156,128 @@ final class Post_Writer {
 			}
 		}
 	}
+
+	/**
+	 * Inserts one meta row.
+	 *
+	 * @param int    $post_id  Post id.
+	 * @param string $meta_key Meta key.
+	 * @param string $value    Raw (already serialized) value.
+	 *
+	 * @throws Apply_Exception When the insert fails.
+	 */
+	public function add_meta( int $post_id, string $meta_key, string $value ): void {
+		global $wpdb;
+
+		// phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery,WordPress.DB.DirectDatabaseQuery.NoCaching -- Direct meta writes avoid WPML custom-field sync onto translations.
+		$inserted = $wpdb->query( $wpdb->prepare( "INSERT INTO {$wpdb->postmeta} (post_id, meta_key, meta_value) VALUES (%d, %s, %s)", $post_id, $meta_key, $value ) );
+
+		if ( false === $inserted ) {
+			throw new Apply_Exception( esc_html( sprintf( 'Could not write meta %1$s of post %2$d.', $meta_key, $post_id ) ) );
+		}
+	}
+
+	/**
+	 * Replaces a single-valued meta key.
+	 *
+	 * @param int    $post_id  Post id.
+	 * @param string $meta_key Meta key.
+	 * @param string $value    Raw value.
+	 */
+	public function set_meta( int $post_id, string $meta_key, string $value ): void {
+		global $wpdb;
+
+		// phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery,WordPress.DB.DirectDatabaseQuery.NoCaching -- Direct meta writes avoid WPML custom-field sync onto translations.
+		$wpdb->query( $wpdb->prepare( "DELETE FROM {$wpdb->postmeta} WHERE post_id = %d AND meta_key = %s", $post_id, $meta_key ) );
+		$this->add_meta( $post_id, $meta_key, $value );
+	}
+
+	/**
+	 * Sets a post's terms in every taxonomy of its post type.
+	 *
+	 * @param int                  $post_id   Post id.
+	 * @param string               $post_type Post type.
+	 * @param array<string, int[]> $terms     Taxonomy => receiver term ids.
+	 *
+	 * @throws Apply_Exception When a write fails.
+	 */
+	public function replace_terms( int $post_id, string $post_type, array $terms ): void {
+		global $wpdb;
+
+		$taxonomies = array_values( array_unique( array_merge( get_object_taxonomies( $post_type ), array_keys( $terms ) ) ) );
+		if ( array() === $taxonomies ) {
+			return;
+		}
+
+		// phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery,WordPress.DB.DirectDatabaseQuery.NoCaching,WordPress.DB.PreparedSQLPlaceholders.UnfinishedPrepare -- Placeholders are generated for each taxonomy; wp_set_object_terms() re-adds default-language terms under WPML.
+		$current = $wpdb->get_results( $wpdb->prepare( "SELECT tr.term_taxonomy_id, tt.taxonomy FROM {$wpdb->term_relationships} tr JOIN {$wpdb->term_taxonomy} tt ON tt.term_taxonomy_id = tr.term_taxonomy_id WHERE tr.object_id = %d AND tt.taxonomy IN (" . implode( ',', array_fill( 0, count( $taxonomies ), '%s' ) ) . ')', array_merge( array( $post_id ), $taxonomies ) ), ARRAY_A );
+
+		$wanted = array();
+		foreach ( $terms as $taxonomy => $term_ids ) {
+			foreach ( $term_ids as $term_id ) {
+				// phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery,WordPress.DB.DirectDatabaseQuery.NoCaching -- WPML filters term lookups by the current language.
+				$tt_id = $wpdb->get_var( $wpdb->prepare( "SELECT term_taxonomy_id FROM {$wpdb->term_taxonomy} WHERE term_id = %d AND taxonomy = %s", $term_id, $taxonomy ) );
+				if ( null === $tt_id ) {
+					throw new Apply_Exception( esc_html( sprintf( 'Term %1$d is not in taxonomy %2$s.', $term_id, $taxonomy ) ) );
+				}
+				$wanted[ (int) $tt_id ] = (string) $taxonomy;
+			}
+		}
+
+		$have    = array();
+		$touched = array();
+		foreach ( (array) $current as $row ) {
+			$tt_id          = (int) $row['term_taxonomy_id'];
+			$have[ $tt_id ] = (string) $row['taxonomy'];
+			if ( ! isset( $wanted[ $tt_id ] ) ) {
+				// phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery,WordPress.DB.DirectDatabaseQuery.NoCaching -- See replace_terms() docblock.
+				$wpdb->delete(
+					$wpdb->term_relationships,
+					array(
+						'object_id'        => $post_id,
+						'term_taxonomy_id' => $tt_id,
+					)
+				);
+				$touched[ $have[ $tt_id ] ][] = $tt_id;
+			}
+		}
+
+		foreach ( $wanted as $tt_id => $taxonomy ) {
+			if ( isset( $have[ $tt_id ] ) ) {
+				continue;
+			}
+			// phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery -- See replace_terms() docblock.
+			$inserted = $wpdb->insert(
+				$wpdb->term_relationships,
+				array(
+					'object_id'        => $post_id,
+					'term_taxonomy_id' => $tt_id,
+					'term_order'       => 0,
+				)
+			);
+			if ( false === $inserted ) {
+				throw new Apply_Exception( esc_html( sprintf( 'Could not assign term %1$d to post %2$d.', $tt_id, $post_id ) ) );
+			}
+			$touched[ $taxonomy ][] = $tt_id;
+		}
+
+		foreach ( $touched as $taxonomy => $tt_ids ) {
+			wp_update_term_count_now( $tt_ids, $taxonomy );
+		}
+	}
+
+	/**
+	 * Deletes a post row and all its meta (used to undo created attachments).
+	 *
+	 * @param int $post_id Post id.
+	 */
+	public function delete( int $post_id ): void {
+		global $wpdb;
+
+		// phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery,WordPress.DB.DirectDatabaseQuery.NoCaching -- Removes rows this relay created; wp_delete_post() would also delete shared files and fire WPML hooks.
+		$wpdb->delete( $wpdb->postmeta, array( 'post_id' => $post_id ) );
+		// phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery,WordPress.DB.DirectDatabaseQuery.NoCaching -- See above.
+		$wpdb->delete( $wpdb->posts, array( 'ID' => $post_id ) );
+		clean_post_cache( $post_id );
+	}
 }
