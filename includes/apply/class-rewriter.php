@@ -129,4 +129,51 @@ final class Rewriter {
 			'meta'    => $meta,
 		);
 	}
+
+	/**
+	 * Transforms one value according to a location's kind.
+	 *
+	 * @param mixed                $value    Value.
+	 * @param array<string, mixed> $location Location.
+	 * @return mixed
+	 */
+	private function transform( $value, array $location ) {
+		$kind = (string) $location['kind'];
+
+		switch ( $kind ) {
+			case 'post':
+			case 'term':
+			case 'user':
+				return Value_Path::map_ids(
+					$value,
+					function ( int $id ) use ( $kind ): ?int {
+						return $this->ids[ $kind . ':' . $id ] ?? null;
+					}
+				);
+
+			case 'text':
+				return is_string( $value ) ? $this->urls->rewrite( $value ) : $value;
+
+			case 'html':
+				return is_string( $value ) ? $this->html( $value ) : $value;
+		}
+
+		return $value;
+	}
+
+	/**
+	 * Rewrites attachment ids and URLs in HTML.
+	 *
+	 * @param string $html HTML.
+	 */
+	private function html( string $html ): string {
+		$html = Html_References::replace_ids(
+			$html,
+			function ( int $id ): ?int {
+				return $this->ids[ 'post:' . $id ] ?? null;
+			}
+		);
+
+		return $this->urls->rewrite( $html );
+	}
 }
