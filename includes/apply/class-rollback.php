@@ -139,4 +139,68 @@ final class Rollback {
 			'caches'   => $caches['purged'],
 		);
 	}
+
+	/**
+	 * Restores one post from its snapshot.
+	 *
+	 * @param int                  $post_id Post id.
+	 * @param array<string, mixed> $saved   Snapshot: row, meta, terms, language.
+	 *
+	 * @throws Apply_Exception When a write fails.
+	 */
+	private function restore( int $post_id, array $saved ): void {
+		global $wpdb;
+
+		$row = (array) ( $saved['row'] ?? array() );
+		unset( $row['ID'] );
+		if ( array() === $row ) {
+			throw new Apply_Exception( esc_html( sprintf( 'The backup of post %d is empty.', $post_id ) ) );
+		}
+
+		// phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery,WordPress.DB.DirectDatabaseQuery.NoCaching -- Restores the stored row exactly.
+		if ( false === $wpdb->update( $wpdb->posts, $row, array( 'ID' => $post_id ) ) ) {
+			throw new Apply_Exception( esc_html( sprintf( 'Could not restore post %d.', $post_id ) ) );
+		}
+
+		// phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery,WordPress.DB.DirectDatabaseQuery.NoCaching -- Restores the stored meta exactly.
+		$wpdb->delete( $wpdb->postmeta, array( 'post_id' => $post_id ) );
+		foreach ( (array) ( $saved['meta'] ?? array() ) as $meta ) {
+			$this->writer->add_meta( $post_id, (string) $meta['meta_key'], (string) $meta['meta_value'] );
+		}
+
+		// phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery,WordPress.DB.DirectDatabaseQuery.NoCaching -- Reads assignments being replaced in this transaction.
+		$current = array_map( 'intval', $wpdb->get_col( $wpdb->prepare( "SELECT term_taxonomy_id FROM {$wpdb->term_relationships} WHERE object_id = %d", $post_id ) ) );
+		$wanted  = array_map( 'intval', (array) ( $saved['terms'] ?? array() ) );
+
+		// phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery,WordPress.DB.DirectDatabaseQuery.NoCaching -- Restores the stored assignments exactly.
+		$wpdb->delete( $wpdb->term_relationships, array( 'object_id' => $post_id ) );
+		foreach ( $wanted as $tt_id ) {
+			// phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery -- Restores the stored assignments exactly.
+			$wpdb->insert(
+				$wpdb->term_relationships,
+				array(
+					'object_id'        => $post_id,
+					'term_taxonomy_id' => $tt_id,
+					'term_order'       => 0,
+				)
+			);
+		}
+
+		$changed = array_values( array_unique( array_merge( $current, $wanted ) ) );
+		if ( array() !== $changed ) {
+			// phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery,WordPress.DB.DirectDatabaseQuery.NoCaching,WordPress.DB.PreparedSQLPlaceholders.UnfinishedPrepare -- Placeholders are generated per id.
+			$by_taxonomy = $wpdb->get_results( $wpdb->prepare( "SELECT term_taxonomy_id, taxonomy FROM {$wpdb->term_taxonomy} WHERE term_taxonomy_id IN (" . implode( ',', array_fill( 0, count( $changed ), '%d' ) ) . ')', $changed ), ARRAY_A );
+			$groups      = array();
+			foreach ( (array) $by_taxonomy as $tt ) {
+				$groups[ (string) $tt['taxonomy'] ][] = (int) $tt['term_taxonomy_id'];
+			}
+			foreach ( $groups as $taxonomy => $tt_ids ) {
+				wp_update_term_count_now( $tt_ids, $taxonomy );
+			}
+		}
+
+		if ( array_key_exists( 'language', $saved ) ) {
+			$this->context->language->import_post_state( $post_id, is_array( $saved['language'] ) ? $saved['language'] : null );
+		}
+	}
 }
