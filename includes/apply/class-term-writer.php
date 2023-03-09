@@ -43,4 +43,65 @@ final class Term_Writer {
 	public function __construct( Receive_Context $context ) {
 		$this->context = $context;
 	}
+
+	/**
+	 * Creates a term.
+	 *
+	 * WPML assigns a new term the *current* language, so the language is switched to the term's own first.
+	 *
+	 * @param array<string, mixed> $record      Manifest term.
+	 * @param int                  $parent_id   Receiver parent term id, or 0.
+	 * @param int|null             $original_id Receiver id of the term this one translates, if any.
+	 * @param array<string, int>   $ids         Object key => receiver id of everything the relay has resolved so far.
+	 * @return int Term id.
+	 *
+	 * @throws Apply_Exception When the term cannot be created.
+	 */
+	public function create( array $record, int $parent_id, ?int $original_id, array $ids = array() ): int {
+		$language = is_string( $record['language'] ?? null ) ? $record['language'] : null;
+
+		if ( null !== $language ) {
+			$this->context->language->switch_to( $language );
+		}
+
+		try {
+			$result = wp_insert_term(
+				(string) $record['name'],
+				(string) $record['taxonomy'],
+				array(
+					'slug'        => (string) $record['slug'],
+					'description' => (string) $record['description'],
+					'parent'      => $parent_id,
+				)
+			);
+		} finally {
+			if ( null !== $language ) {
+				$this->context->language->restore();
+			}
+		}
+
+		if ( is_wp_error( $result ) ) {
+			throw new Apply_Exception( esc_html( sprintf( 'Could not create term %1$s/%2$s: %3$s', $record['taxonomy'], $record['slug'], $result->get_error_message() ) ) );
+		}
+
+		$term_id = (int) $result['term_id'];
+		$label   = sprintf( 'Term %1$s/%2$s', (string) $record['taxonomy'], (string) $record['slug'] );
+		$meta    = $this->map_meta_ids( (array) ( $record['meta'] ?? array() ), (array) ( $record['meta_refs'] ?? array() ), $ids, $label );
+
+		foreach ( $meta as $meta_key => $values ) {
+			foreach ( (array) $values as $value ) {
+				add_term_meta( $term_id, (string) $meta_key, maybe_unserialize( (string) $value ) );
+			}
+		}
+
+		if ( is_string( $record['uuid'] ?? null ) ) {
+			update_term_meta( $term_id, Uuid::META_KEY, $record['uuid'] );
+		}
+
+		if ( null !== $language ) {
+			$this->context->language->link_term( $term_id, (string) $record['taxonomy'], $language, $original_id );
+		}
+
+		return $term_id;
+	}
 }
