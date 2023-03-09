@@ -104,4 +104,51 @@ final class Term_Writer {
 
 		return $term_id;
 	}
+
+	/**
+	 * Warnings from the terms created so far.
+	 *
+	 * @return string[]
+	 */
+	public function warnings(): array {
+		return $this->warnings;
+	}
+
+	/**
+	 * Maps the ids held in a term's ACF id fields, removing ids this relay has no object for.
+	 *
+	 * @param array<string, array<int, string>> $meta  Raw meta: key => stored values.
+	 * @param array<int, array<string, mixed>>  $refs  Values holding ids: key, index, kind.
+	 * @param array<string, int>                $ids   Object key => receiver id.
+	 * @param string                            $label Term label for warnings.
+	 * @return array<string, array<int, string>>
+	 */
+	private function map_meta_ids( array $meta, array $refs, array $ids, string $label ): array {
+		foreach ( $refs as $ref ) {
+			$key   = (string) ( $ref['key'] ?? '' );
+			$index = (int) ( $ref['index'] ?? 0 );
+			$kind  = (string) ( $ref['kind'] ?? '' );
+			if ( ! isset( $meta[ $key ][ $index ] ) || ! in_array( $kind, array( 'post', 'term', 'user' ), true ) ) {
+				continue;
+			}
+
+			$raw     = (string) $meta[ $key ][ $index ];
+			$missing = array();
+			$mapped  = self::map_value( maybe_unserialize( $raw ), $kind, $ids, $missing );
+
+			$meta[ $key ][ $index ] = is_serialized( $raw ) ? (string) maybe_serialize( $mapped ) : ( is_scalar( $mapped ) ? (string) $mapped : $raw );
+
+			if ( array() !== $missing ) {
+				$this->warnings[] = sprintf(
+					'%1$s: field %2$s referred to %3$s %4$s, which this relay does not carry; the reference was removed.',
+					$label,
+					$key,
+					$kind,
+					implode( ', ', array_unique( $missing ) )
+				);
+			}
+		}
+
+		return $meta;
+	}
 }
