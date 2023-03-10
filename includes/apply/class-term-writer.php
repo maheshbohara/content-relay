@@ -151,4 +151,43 @@ final class Term_Writer {
 
 		return $meta;
 	}
+
+	/**
+	 * Maps ids in a value. An id without a mapping is removed from a list, or emptied when it is the whole value.
+	 *
+	 * @param mixed              $value   An id, a numeric string, or a list of them.
+	 * @param string             $kind    `post`, `term` or `user`.
+	 * @param array<string, int> $ids     Object key => receiver id.
+	 * @param int[]              $missing Ids without a mapping; appended to.
+	 * @return mixed
+	 */
+	private static function map_value( $value, string $kind, array $ids, array &$missing ) {
+		if ( is_int( $value ) || ( is_string( $value ) && ctype_digit( $value ) ) ) {
+			$id = (int) $value;
+			if ( $id <= 0 ) {
+				return $value;
+			}
+			if ( isset( $ids[ $kind . ':' . $id ] ) ) {
+				return is_int( $value ) ? $ids[ $kind . ':' . $id ] : (string) $ids[ $kind . ':' . $id ];
+			}
+			$missing[] = $id;
+			return '';
+		}
+
+		if ( is_array( $value ) ) {
+			$is_list = array_values( $value ) === $value;
+			$mapped  = array();
+			foreach ( $value as $item_key => $item ) {
+				$result = self::map_value( $item, $kind, $ids, $missing );
+				if ( '' === $result && '' !== $item ) {
+					continue;
+				}
+				$mapped[ $item_key ] = $result;
+			}
+
+			return $is_list ? array_values( $mapped ) : $mapped;
+		}
+
+		return $value;
+	}
 }
