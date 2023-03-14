@@ -86,4 +86,86 @@ final class Page_Checks {
 
 		return false;
 	}
+
+	/**
+	 * Places where the sender's host still appears as a URL (`//host`, JSON-escaped `\/\/host`, or `%2F%2Fhost`).
+	 *
+	 * Only URL-shaped occurrences count, so an e-mail address or a mention of the domain in copy is not reported, and a
+	 * receiver on a subdomain of the sender (`dev.example.com` receiving from `example.com`) is not mistaken for it.
+	 *
+	 * @param string $html  Page HTML.
+	 * @param string $host  Sender host name.
+	 * @param int    $limit Snippets to return.
+	 * @return array{count: int, snippets: string[]}
+	 */
+	public static function sender_urls( string $html, string $host, int $limit = 5 ): array {
+		$host   = strtolower( trim( $host ) );
+		$result = array(
+			'count'    => 0,
+			'snippets' => array(),
+		);
+		if ( '' === $host ) {
+			return $result;
+		}
+
+		$pattern = '~(?://|\\\\/\\\\/|%2F%2F)(?:www\.)?' . preg_quote( $host, '~' ) . '(?![a-z0-9-]|\.[a-z0-9])~i';
+		if ( ! preg_match_all( $pattern, $html, $matches, PREG_OFFSET_CAPTURE ) ) {
+			return $result;
+		}
+
+		$result['count'] = count( $matches[0] );
+		foreach ( array_slice( $matches[0], 0, max( 0, $limit ) ) as $match ) {
+			$start                = max( 0, (int) $match[1] - 40 );
+			$result['snippets'][] = (string) preg_replace( '/\s+/', ' ', substr( $html, $start, strlen( (string) $match[0] ) + 80 ) );
+		}
+
+		return $result;
+	}
+
+	/**
+	 * Image URLs (`src`, `srcset`, lazy-load `data-` variants) of `<img>` and `<source>` under an uploads URL.
+	 *
+	 * @param string $html        Page HTML.
+	 * @param string $uploads_url Receiver uploads URL.
+	 * @param int    $limit       Most URLs returned.
+	 * @return string[] Unique URLs in page order.
+	 */
+	public static function upload_assets( string $html, string $uploads_url, int $limit = 50 ): array {
+		$base = strtolower( self::strip_scheme( rtrim( $uploads_url, '/' ) ) ) . '/';
+		$urls = array();
+		if ( '/' === $base || ! preg_match_all( '/<(?:img|source)\b[^>]*>/i', $html, $tags ) ) {
+			return $urls;
+		}
+
+		foreach ( $tags[0] as $tag ) {
+			$attributes = self::attributes( $tag );
+			$candidates = array();
+			foreach ( array( 'src', 'data-src' ) as $name ) {
+				if ( isset( $attributes[ $name ] ) ) {
+					$candidates[] = $attributes[ $name ];
+				}
+			}
+			foreach ( array( 'srcset', 'data-srcset' ) as $name ) {
+				foreach ( isset( $attributes[ $name ] ) ? explode( ',', $attributes[ $name ] ) : array() as $entry ) {
+					$parts = preg_split( '/\s+/', trim( $entry ) );
+					if ( is_array( $parts ) && '' !== (string) ( $parts[0] ?? '' ) ) {
+						$candidates[] = (string) $parts[0];
+					}
+				}
+			}
+
+			foreach ( $candidates as $url ) {
+				$url = trim( $url );
+				if ( 0 !== strpos( strtolower( self::strip_scheme( $url ) ), $base ) || in_array( $url, $urls, true ) ) {
+					continue;
+				}
+				$urls[] = $url;
+				if ( count( $urls ) >= $limit ) {
+					return $urls;
+				}
+			}
+		}
+
+		return $urls;
+	}
 }
