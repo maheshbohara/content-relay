@@ -211,4 +211,29 @@ final class Page_Checks {
 
 		return is_array( $parts ) ? (string) $parts[0] : '';
 	}
+
+	/**
+	 * A URL without its scheme (`https://host/x` → `//host/x`).
+	 *
+	 * @param string $url URL.
+	 */
+	private static function strip_scheme( string $url ): string {
+		return (string) preg_replace( '#^[a-z][a-z0-9+.-]*:#i', '', $url );
+	}
+
+	/**
+	 * Comparable form of a URL.
+	 *
+	 * @param string $url URL.
+	 */
+	private static function normalize_url( string $url ): string {
+		$parts = wp_parse_url( trim( $url ) );
+		if ( ! is_array( $parts ) || ! isset( $parts['host'] ) ) {
+			return rtrim( trim( $url ), '/' );
+		}
+
+		$path = isset( $parts['path'] ) ? rawurldecode( (string) $parts['path'] ) : '';
+
+		return strtolower( (string) $parts['host'] ) . ( isset( $parts['port'] ) ? ':' . $parts['port'] : '' ) . '/' . trim( $path, '/' ) . ( isset( $parts['query'] ) ? '?' . $parts['query'] : '' );
+	}
 }
