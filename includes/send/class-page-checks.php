@@ -43,4 +43,47 @@ final class Page_Checks {
 
 		return self::primary_subtag( $lang ) === self::primary_subtag( $expected );
 	}
+
+	/**
+	 * `<link rel="alternate" hreflang="…" href="…">` pairs.
+	 *
+	 * @param string $html Page HTML.
+	 * @return array<int, array{hreflang: string, href: string}>
+	 */
+	public static function hreflang_links( string $html ): array {
+		$links = array();
+		if ( ! preg_match_all( '/<link\b[^>]*>/i', $html, $tags ) ) {
+			return $links;
+		}
+
+		foreach ( $tags[0] as $tag ) {
+			$attributes = self::attributes( $tag );
+			$rel        = preg_split( '/\s+/', strtolower( $attributes['rel'] ?? '' ) );
+			if ( ! isset( $attributes['hreflang'], $attributes['href'] ) || ! is_array( $rel ) || ! in_array( 'alternate', $rel, true ) ) {
+				continue;
+			}
+			$links[] = array(
+				'hreflang' => $attributes['hreflang'],
+				'href'     => $attributes['href'],
+			);
+		}
+
+		return $links;
+	}
+
+	/**
+	 * Whether a URL is among the hreflang alternates.
+	 *
+	 * @param array<int, array{hreflang: string, href: string}> $links Alternates.
+	 * @param string                                            $url   URL.
+	 */
+	public static function has_alternate( array $links, string $url ): bool {
+		foreach ( $links as $link ) {
+			if ( self::same_url( $link['href'], $url ) ) {
+				return true;
+			}
+		}
+
+		return false;
+	}
 }
