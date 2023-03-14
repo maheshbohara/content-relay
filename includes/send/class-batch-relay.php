@@ -171,4 +171,70 @@ final class Batch_Relay {
 
 		return $outcome;
 	}
+
+	/**
+	 * Counts the plan's writing actions by action.
+	 *
+	 * @param array<string, mixed> $plan Plan.
+	 * @return array<string, int>
+	 */
+	public static function count_changes( array $plan ): array {
+		$counts = array();
+		foreach ( (array) $plan['items'] as $item ) {
+			$action = (string) ( $item['action'] ?? '' );
+			if ( in_array( $action, self::CHANGE_ACTIONS, true ) ) {
+				$counts[ $action ] = ( $counts[ $action ] ?? 0 ) + 1;
+			}
+		}
+		ksort( $counts );
+
+		return $counts;
+	}
+
+	/**
+	 * Labels of the group's own posts (not media) that the receiver already has.
+	 *
+	 * @param array<string, mixed> $plan Plan.
+	 * @return string[]
+	 */
+	public static function existing_posts( array $plan ): array {
+		$labels = array();
+		foreach ( (array) ( $plan['items'] ?? array() ) as $item ) {
+			if ( 'post' === ( $item['kind'] ?? '' ) && 'owned' === ( $item['role'] ?? '' ) && null !== ( $item['id'] ?? null ) && 'create' !== ( $item['action'] ?? '' ) ) {
+				$labels[] = (string) $item['label'];
+			}
+		}
+
+		return $labels;
+	}
+
+	/**
+	 * Drops the blockers a plan reports only because files were not uploaded yet, which a dry run never does.
+	 *
+	 * @param string[] $blockers Blockers.
+	 * @return string[]
+	 */
+	public static function without_pending_files( array $blockers ): array {
+		return array_values(
+			array_filter(
+				$blockers,
+				static function ( $blocker ): bool {
+					return 1 !== preg_match( '/^The file for .+ is not in the bundle\.$/', (string) $blocker );
+				}
+			)
+		);
+	}
+
+	/**
+	 * Aborts a session on the receiver, ignoring a failure (the session expires there on its own).
+	 *
+	 * @param string $session Session id.
+	 */
+	private function abort( string $session ): void {
+		try {
+			$this->sender->abort( $session );
+		} catch ( Send_Exception $e ) {
+			unset( $e );
+		}
+	}
 }
