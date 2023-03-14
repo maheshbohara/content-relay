@@ -168,4 +168,47 @@ final class Page_Checks {
 
 		return $urls;
 	}
+
+	/**
+	 * Whether two URLs name the same page: scheme, host case, a trailing slash and percent-encoding are ignored.
+	 *
+	 * @param string $a URL.
+	 * @param string $b URL.
+	 */
+	public static function same_url( string $a, string $b ): bool {
+		return self::normalize_url( $a ) === self::normalize_url( $b );
+	}
+
+	/**
+	 * Attributes of one tag: names lowercased, first occurrence wins, values entity-decoded.
+	 *
+	 * @param string $tag Tag source, e.g. `<link rel="alternate" …>`.
+	 * @return array<string, string>
+	 */
+	public static function attributes( string $tag ): array {
+		$attributes = array();
+		if ( ! preg_match_all( '/([a-zA-Z_:][-a-zA-Z0-9_:.]*)\s*=\s*(?:"([^"]*)"|\'([^\']*)\'|([^\s"\'>]+))/', $tag, $matches, PREG_SET_ORDER | PREG_UNMATCHED_AS_NULL ) ) {
+			return $attributes;
+		}
+
+		foreach ( $matches as $match ) {
+			$name = strtolower( (string) $match[1] );
+			if ( ! isset( $attributes[ $name ] ) ) {
+				$attributes[ $name ] = html_entity_decode( (string) ( $match[2] ?? $match[3] ?? $match[4] ?? '' ), ENT_QUOTES | ENT_HTML5, 'UTF-8' );
+			}
+		}
+
+		return $attributes;
+	}
+
+	/**
+	 * Primary language subtag, lowercased.
+	 *
+	 * @param string $code Language code.
+	 */
+	private static function primary_subtag( string $code ): string {
+		$parts = preg_split( '/[-_]/', strtolower( trim( $code ) ) );
+
+		return is_array( $parts ) ? (string) $parts[0] : '';
+	}
 }
