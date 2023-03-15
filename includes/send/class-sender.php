@@ -79,4 +79,43 @@ final class Sender {
 		$this->log         = $log;
 		$this->root        = rtrim( $root, '/' );
 	}
+
+	/**
+	 * Sender of this site.
+	 *
+	 * @throws Send_Exception When sending is off or connection keys cannot be decrypted here.
+	 */
+	public static function for_site(): self {
+		if ( ! Config::can_send() ) {
+			throw new Send_Exception( esc_html__( 'Sending is off on this site. Switch it on under Settings → Content Relay.', 'content-relay' ), 'sending_off', 403 );
+		}
+
+		$vault = Vault::from_config();
+		if ( null === $vault ) {
+			throw new Send_Exception( esc_html__( 'This site has no key material for connection keys: define CONTENT_RELAY_ENCRYPTION_KEY, or real AUTH_KEY and SECURE_AUTH_KEY salts, in wp-config.php.', 'content-relay' ), 'no_key_material', 500 );
+		}
+
+		$uploads = wp_get_upload_dir();
+
+		return new self( new Connections( $vault ), new Log_Table(), untrailingslashit( (string) $uploads['basedir'] ) . '/content-relay/outgoing' );
+	}
+
+	/**
+	 * Connection store.
+	 */
+	public function connections(): Connections {
+		return $this->connections;
+	}
+
+	/**
+	 * Runs a handshake with a stored connection.
+	 *
+	 * @param string $label Connection label.
+	 * @return array<string, mixed> Receiver environment.
+	 *
+	 * @throws Send_Exception When the connection is unknown, the handshake fails or the schema differs.
+	 */
+	public function handshake( string $label ): array {
+		return self::handshake_client( $this->client( $label ) );
+	}
 }
