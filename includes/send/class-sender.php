@@ -218,4 +218,108 @@ final class Sender {
 
 		return self::with_progress( $state );
 	}
+
+	/**
+	 * Refreshes an open session's file progress from the receiver (after an interruption).
+	 *
+	 * @param string $session Session id.
+	 * @return array<string, mixed> Session state with progress.
+	 *
+	 * @throws Send_Exception When the session is unknown here or no longer open on the receiver.
+	 */
+	public function resume( string $session ): array {
+		$state = $this->state( $session );
+		$data  = self::expect( $this->client( (string) $state['connection'] )->session( $session ), esc_html__( 'Cannot resume the session', 'content-relay' ) );
+		if ( 'planned' !== ( $data['status'] ?? '' ) ) {
+			throw new Send_Exception(
+				sprintf(
+					/* translators: %s: session status on the receiver, e.g. applied. */
+					esc_html__( 'The session is %s on the receiver and can no longer be resumed.', 'content-relay' ),
+					esc_html( (string) ( $data['status'] ?? '?' ) )
+				),
+				'session_not_open'
+			);
+		}
+
+		$state['files'] = self::files_state( $this->manifest( $session ), (array) ( $data['files'] ?? array() ) );
+		$this->write( $session, 'state.json', $state );
+
+		return self::with_progress( $state );
+	}
+
+	/**
+	 * Uploads what the receiver still needs, for at most `$budget_seconds` (at least one chunk per call).
+	 *
+	 * @param string        $session        Session id.
+	 * @param float         $budget_seconds Time budget.
+	 * @param callable|null $on_complete    Called with each file that completes during this call.
+	 * @return array<string, mixed> Session state with progress; `progress.done` once every file is on the receiver.
+	 *
+	 * @throws Send_Exception When a file changed here or the receiver refuses an upload.
+	 */
+	public function upload( string $session, float $budget_seconds, ?callable $on_complete = null ): array {
+		$state    = $this->state( $session );
+		$client   = $this->client( (string) $state['connection'] );
+		$uploads  = wp_get_upload_dir();
+		$base     = untrailingslashit( (string) $uploads['basedir'] );
+		$deadline = microtime( true ) + $budget_seconds;
+		$sent     = false;
+
+		foreach ( $state['files'] as $index => $file ) {
+			if ( ! empty( $file['complete'] ) ) {
+				continue;
+			}
+
+			$path = $base . '/' . $file['source'];
+			if ( '' === (string) $file['source'] || ! is_readable( $path ) || sha1_file( $path ) !== $file['sha1'] ) {
+				throw new Send_Exception(
+					sprintf(
+						/* translators: %s: file name. */
+						esc_html__( 'The file %s changed or disappeared on this site after the relay started. Cancel the relay and start again.', 'content-relay' ),
+						esc_html( (string) $file['name'] )
+					),
+					'file_changed'
+				);
+			}
+
+			$retries = 0;
+			while ( empty( $state['files'][ $index ]['complete'] ) ) {
+				if ( $sent && microtime( true ) >= $deadline ) {
+					$this->write( $session, 'state.json', $state );
+					return self::with_progress( $state );
+				}
+
+				$offset   = (int) $state['files'][ $index ]['received'];
+				$chunk    = (string) file_get_contents( $path, false, null, $offset, (int) $state['chunk_bytes'] ); // phpcs:ignore WordPress.WP.AlternativeFunctions.file_get_contents_file_get_contents -- Reads one chunk of a local uploads file.
+				$response = $client->upload( $session, (string) $file['sha1'], $offset, $chunk );
+				$sent     = true;
+
+				if ( $response['ok'] ) {
+					$state['files'][ $index ]['received'] = (int) $response['data']['received'];
+					$state['files'][ $index ]['complete'] = ! empty( $response['data']['complete'] );
+				} elseif ( in_array( $response['code'], array( 'offset_mismatch', 'hash_mismatch' ), true ) && $retries < self::MAX_RETRIES ) {
+					++$retries;
+					$state['files'][ $index ]['received'] = (int) ( $response['data']['received'] ?? 0 );
+				} else {
+					$this->write( $session, 'state.json', $state );
+					self::expect(
+						$response,
+						sprintf(
+							/* translators: 1: file name, 2: byte offset. */
+							esc_html__( 'Upload of %1$s failed at byte %2$d', 'content-relay' ),
+							esc_html( (string) $file['name'] ),
+							$offset
+						)
+					);
+				}
+			}
+
+			$this->write( $session, 'state.json', $state );
+			if ( null !== $on_complete ) {
+				$on_complete( $state['files'][ $index ] );
+			}
+		}
+
+		return self::with_progress( $state );
+	}
 }
