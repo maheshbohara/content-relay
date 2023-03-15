@@ -35,4 +35,48 @@ final class Sender {
 	 * Default upload chunk size (1 MiB); the receiver's limit wins when it is lower.
 	 */
 	public const DEFAULT_CHUNK_BYTES = 1048576;
+
+	/**
+	 * How often an upload may restart from the receiver's offset or after a hash mismatch before giving up.
+	 */
+	private const MAX_RETRIES = 3;
+
+	/**
+	 * Seconds a status confirmed by the receiver is trusted before it is asked again.
+	 */
+	private const STATUS_TTL = 300;
+
+	/**
+	 * Connections.
+	 *
+	 * @var Connections
+	 */
+	private Connections $connections;
+
+	/**
+	 * Log.
+	 *
+	 * @var Log_Table
+	 */
+	private Log_Table $log;
+
+	/**
+	 * Outgoing directory without trailing slash.
+	 *
+	 * @var string
+	 */
+	private string $root;
+
+	/**
+	 * Constructor.
+	 *
+	 * @param Connections $connections Connections.
+	 * @param Log_Table   $log         Log.
+	 * @param string      $root        Outgoing directory, e.g. `…/uploads/content-relay/outgoing`.
+	 */
+	public function __construct( Connections $connections, Log_Table $log, string $root ) {
+		$this->connections = $connections;
+		$this->log         = $log;
+		$this->root        = rtrim( $root, '/' );
+	}
 }
