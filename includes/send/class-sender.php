@@ -118,4 +118,104 @@ final class Sender {
 	public function handshake( string $label ): array {
 		return self::handshake_client( $this->client( $label ) );
 	}
+
+	/**
+	 * Runs a handshake with any client (also used before a connection is stored).
+	 *
+	 * @param Client $client Client.
+	 * @return array<string, mixed> Receiver environment.
+	 *
+	 * @throws Send_Exception When the handshake fails or the receiver reads another manifest schema.
+	 */
+	public static function handshake_client( Client $client ): array {
+		$environment = self::expect( $client->handshake(), esc_html__( 'Handshake failed', 'content-relay' ) );
+		if ( CONTENT_RELAY_SCHEMA !== ( $environment['schema'] ?? null ) ) {
+			throw new Send_Exception(
+				sprintf(
+					/* translators: 1: manifest schema the receiver reads, 2: manifest schema this site writes. */
+					esc_html__( 'The receiver reads manifest schema %1$s; this site writes schema %2$d. Update the plugin on both sites.', 'content-relay' ),
+					esc_html( (string) wp_json_encode( $environment['schema'] ?? null ) ),
+					(int) CONTENT_RELAY_SCHEMA
+				),
+				'schema_mismatch'
+			);
+		}
+
+		return $environment;
+	}
+
+	/**
+	 * Exports a page and opens a session on the receiver.
+	 *
+	 * @param int    $post_id     Page id (any language version).
+	 * @param string $label       Connection label.
+	 * @param bool   $overwrite   Plan with overwrite.
+	 * @param int    $chunk_bytes Upload chunk size.
+	 * @return array<string, mixed> Session state with progress.
+	 *
+	 * @throws Send_Exception When anything fails; nothing is left open on the receiver in that case.
+	 */
+	public function start( int $post_id, string $label, bool $overwrite, int $chunk_bytes = self::DEFAULT_CHUNK_BYTES ): array {
+		$connection  = $this->connection( $label );
+		$client      = new Client( $connection );
+		$environment = self::handshake_client( $client );
+
+		try {
+			$manifest = ( new Exporter( new Export_Context( Adapter_Factory::create() ) ) )->export( $post_id );
+		} catch ( Export_Exception $e ) {
+			throw new Send_Exception( esc_html( html_entity_decode( $e->getMessage(), ENT_QUOTES | ENT_HTML5, 'UTF-8' ) ), 'export_failed', 400, $e ); // phpcs:ignore WordPress.Security.EscapeOutput.ExceptionNotEscaped -- The message is escaped; the previous exception is chained, not output.
+		}
+
+		$data    = self::expect( $client->create_session( $manifest, $overwrite ), esc_html__( 'The receiver refused the relay', 'content-relay' ) );
+		$session = (string) ( $data['session'] ?? '' );
+		if ( ! Uuid::is_valid( $session ) ) {
+			throw new Send_Exception( esc_html__( 'The receiver returned no valid session id.', 'content-relay' ), 'bad_response', 502 );
+		}
+
+		$root      = (array) ( $manifest['objects'][ $manifest['root'] ] ?? array() );
+		$languages = array();
+		foreach ( (array) $manifest['roots'] as $key ) {
+			$language = $manifest['objects'][ $key ]['language'] ?? null;
+			if ( is_string( $language ) ) {
+				$languages[] = $language;
+			}
+		}
+
+		$state = array(
+			'session'      => $session,
+			'connection'   => $label,
+			'receiver'     => (string) ( $environment['home_url'] ?? $connection['url'] ),
+			'post_id'      => $post_id,
+			'title'        => (string) ( $root['title'] ?? '' ),
+			'languages'    => $languages,
+			'overwrite'    => $overwrite,
+			'uploads_url'  => (string) ( $environment['uploads_url'] ?? '' ),
+			'object_cache' => ! empty( $environment['object_cache'] ),
+			'chunk_bytes'  => max( 1, min( $chunk_bytes, (int) ( $environment['limits']['max_chunk_bytes'] ?? self::DEFAULT_CHUNK_BYTES ) ) ),
+			'files'        => self::files_state( $manifest, (array) ( $data['files'] ?? array() ) ),
+			'created_at'   => gmdate( 'c' ),
+		);
+
+		$this->write( $session, 'manifest.json', $manifest );
+		$this->write( $session, 'state.json', $state );
+
+		$user = wp_get_current_user();
+		$this->log->insert(
+			array(
+				'session'      => $session,
+				'direction'    => Log_Table::OUT,
+				'connection'   => $label,
+				'peer_url'     => $state['receiver'],
+				'kid'          => $connection['kid'],
+				'root_uuid'    => (string) ( $root['uuid'] ?? '' ),
+				'root_title'   => $state['title'],
+				'root_post_id' => $post_id,
+				'languages'    => implode( ',', $languages ),
+				'user_login'   => $user->exists() ? $user->user_login : 'wp-cli',
+				'status'       => Log_Table::STATUS_PLANNED,
+			)
+		);
+
+		return self::with_progress( $state );
+	}
 }
