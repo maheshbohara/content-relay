@@ -452,4 +452,93 @@ final class Sender {
 
 		return $data;
 	}
+
+	/**
+	 * Checks an applied relay's pages over HTTP on the receiver (spec §12) and stores the report in the log.
+	 *
+	 * @param string $session Relay session id.
+	 * @return array{checked_at: string, ok: bool, pages: array<int, array<string, mixed>>, problems: string[]}
+	 *
+	 * @throws Send_Exception When this site has no applied relay with that id.
+	 */
+	public function verify( string $session ): array {
+		$row = $this->log->find_session( $session, Log_Table::OUT );
+		if ( null === $row || ! is_array( $row['result']['verify'] ?? null ) ) {
+			throw new Send_Exception( esc_html__( 'This site has no applied relay with that session id to check.', 'content-relay' ), 'unknown_session', 404 );
+		}
+		if ( Log_Table::STATUS_APPLIED !== $row['status'] ) {
+			throw new Send_Exception(
+				sprintf(
+					/* translators: %s: relay status, e.g. rolled-back. */
+					esc_html__( 'Only an applied relay can be checked; this one is %s.', 'content-relay' ),
+					esc_html( (string) $row['status'] )
+				),
+				'not_applied'
+			);
+		}
+
+		$plan   = $row['result']['verify'];
+		$report = ( new Verifier() )->verify( (array) ( $plan['targets'] ?? array() ), (string) ( $plan['sender_home'] ?? '' ), (string) ( $plan['uploads_url'] ?? '' ) );
+
+		$this->log->update( $session, Log_Table::OUT, array( 'result' => array_merge( (array) $row['result'], array( 'verification' => $report ) ) ) );
+
+		return $report;
+	}
+
+	/**
+	 * Confirms an applied relay's status with its receiver, which may have rolled it back since: keys let the sender
+	 * ask, never the receiver tell. A rollback found there is written to this site's log.
+	 *
+	 * @param string $session Relay session id.
+	 * @param bool   $force   Ask even when the status was confirmed recently.
+	 * @return string This site's status when it is not `applied`; otherwise `applied`, `rolled-back`, `unknown` (the
+	 *                receiver has no such session for this key, or the connection is gone) or `unreachable`.
+	 */
+	public function refresh_status( string $session, bool $force = false ): string {
+		$row = $this->log->find_session( $session, Log_Table::OUT );
+		if ( null === $row ) {
+			return 'unknown';
+		}
+		if ( Log_Table::STATUS_APPLIED !== $row['status'] ) {
+			return (string) $row['status'];
+		}
+
+		$confirmed = 'content_relay_status_' . md5( $session );
+		if ( ! $force && false !== get_transient( $confirmed ) ) {
+			return Log_Table::STATUS_APPLIED;
+		}
+
+		try {
+			$response = $this->client( (string) $row['connection'] )->session( $session, null, 10 );
+		} catch ( Send_Exception $e ) {
+			return 'unknown';
+		}
+		if ( ! $response['ok'] ) {
+			return 0 === $response['status'] ? 'unreachable' : 'unknown';
+		}
+
+		if ( Log_Table::STATUS_ROLLED_BACK === ( $response['data']['status'] ?? '' ) ) {
+			$this->log->update(
+				$session,
+				Log_Table::OUT,
+				array(
+					'status' => Log_Table::STATUS_ROLLED_BACK,
+					'result' => array_merge(
+						(array) ( $row['result'] ?? array() ),
+						array(
+							'rollback'                => $response['data']['rollback'] ?? null,
+							'rolled_back_on_receiver' => true,
+						)
+					),
+				)
+			);
+			delete_transient( $confirmed );
+
+			return Log_Table::STATUS_ROLLED_BACK;
+		}
+
+		set_transient( $confirmed, 1, self::STATUS_TTL );
+
+		return Log_Table::STATUS_APPLIED;
+	}
 }
