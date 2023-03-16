@@ -541,4 +541,58 @@ final class Sender {
 
 		return Log_Table::STATUS_APPLIED;
 	}
+
+	/**
+	 * Local state of an open session.
+	 *
+	 * @param string $session Session id.
+	 * @return array<string, mixed>
+	 *
+	 * @throws Send_Exception When this site has no open session with that id.
+	 */
+	public function state( string $session ): array {
+		$state = Uuid::is_valid( $session ) ? $this->read( $session, 'state.json' ) : null;
+		if ( null === $state ) {
+			throw new Send_Exception(
+				sprintf(
+					/* translators: %s: relay session id. */
+					esc_html__( 'This site has no open relay session %s.', 'content-relay' ),
+					esc_html( $session )
+				),
+				'unknown_session',
+				404
+			);
+		}
+
+		return $state;
+	}
+
+	/**
+	 * Adds upload progress to a state.
+	 *
+	 * @param array<string, mixed> $state State.
+	 * @return array<string, mixed>
+	 */
+	public static function with_progress( array $state ): array {
+		$progress = array(
+			'files_total'    => 0,
+			'files_complete' => 0,
+			'bytes_total'    => 0,
+			'bytes_received' => 0,
+			'done'           => true,
+		);
+		foreach ( (array) $state['files'] as $file ) {
+			++$progress['files_total'];
+			$progress['bytes_total']    += (int) $file['bytes'];
+			$progress['bytes_received'] += (int) $file['received'];
+			if ( ! empty( $file['complete'] ) ) {
+				++$progress['files_complete'];
+			} else {
+				$progress['done'] = false;
+			}
+		}
+		$state['progress'] = $progress;
+
+		return $state;
+	}
 }
