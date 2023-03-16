@@ -384,4 +384,72 @@ final class Sender {
 
 		return $data;
 	}
+
+	/**
+	 * Aborts an unapplied session on the receiver and forgets it here.
+	 *
+	 * @param string $session Session id.
+	 *
+	 * @throws Send_Exception When the session was applied or the receiver refuses.
+	 */
+	public function abort( string $session ): void {
+		$row   = $this->log->find_session( $session, Log_Table::OUT );
+		$label = (string) ( $row['connection'] ?? '' );
+		if ( '' === $label ) {
+			$label = (string) $this->state( $session )['connection'];
+		}
+		if ( in_array( $row['status'] ?? '', array( Log_Table::STATUS_APPLIED, Log_Table::STATUS_ROLLED_BACK ), true ) ) {
+			throw new Send_Exception( esc_html__( 'This relay was already applied; roll it back instead.', 'content-relay' ), 'session_applied' );
+		}
+
+		$response = $this->client( $label )->abort( $session );
+		if ( ! $response['ok'] && 'unknown_session' !== $response['code'] ) {
+			self::expect( $response, esc_html__( 'The receiver did not abort the session', 'content-relay' ) );
+		}
+
+		$this->log->update( $session, Log_Table::OUT, array( 'status' => Log_Table::STATUS_ABORTED ) );
+		$this->remove( $session );
+	}
+
+	/**
+	 * Rolls back an applied session on the receiver.
+	 *
+	 * @param string $session   Session id.
+	 * @param bool   $overwrite Roll back even if the relayed objects changed since.
+	 * @param string $label     Connection label, needed only for sessions this site has no log row for.
+	 * @return array<string, mixed> Receiver session data with `rollback`.
+	 *
+	 * @throws Send_Exception When the receiver refuses.
+	 */
+	public function rollback( string $session, bool $overwrite, string $label = '' ): array {
+		$row   = $this->log->find_session( $session, Log_Table::OUT );
+		$label = '' !== $label ? $label : (string) ( $row['connection'] ?? '' );
+		if ( '' === $label ) {
+			throw new Send_Exception( esc_html__( 'This site has no record of that relay session; name the connection to roll it back.', 'content-relay' ), 'unknown_session', 404 );
+		}
+
+		try {
+			$data = self::expect( $this->client( $label )->rollback( $session, $overwrite ), esc_html__( 'Rollback refused', 'content-relay' ) );
+		} catch ( Send_Exception $e ) {
+			if ( 'not_applied' === $e->error_code() && null !== $row ) {
+				// The receiver rolled it back itself; bring this site's log up to date before reporting.
+				$this->refresh_status( $session, true );
+			}
+			throw $e;
+		}
+
+		if ( null !== $row ) {
+			$this->log->update(
+				$session,
+				Log_Table::OUT,
+				array(
+					'status' => Log_Table::STATUS_ROLLED_BACK,
+					'result' => array_merge( (array) ( $row['result'] ?? array() ), array( 'rollback' => $data['rollback'] ?? null ) ),
+					'error'  => null,
+				)
+			);
+		}
+
+		return $data;
+	}
 }
