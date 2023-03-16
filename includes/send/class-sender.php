@@ -595,4 +595,42 @@ final class Sender {
 
 		return $state;
 	}
+
+	/**
+	 * Returns a response's data, or throws its error.
+	 *
+	 * @param array{status: int, ok: bool, code: string, message: string, data: array<string, mixed>} $response Response.
+	 * @param string                                                                                  $context  What was attempted (escaped).
+	 * @return array<string, mixed>
+	 *
+	 * @throws Send_Exception When the response is not ok.
+	 */
+	private static function expect( array $response, string $context ): array {
+		if ( $response['ok'] ) {
+			return $response['data'];
+		}
+
+		$status = (int) $response['status'];
+		throw new Send_Exception(
+			sprintf( '%1$s (HTTP %2$d, %3$s): %4$s', esc_html( $context ), (int) $status, esc_html( $response['code'] ), esc_html( $response['message'] ) ),
+			'' === $response['code'] ? 'remote_error' : esc_html( $response['code'] ),
+			0 === $status || $status >= 500 ? 502 : 409
+		);
+	}
+
+	/**
+	 * A stored connection with its key.
+	 *
+	 * @param string $label Label.
+	 * @return array{label: string, url: string, kid: string, secret_key: string}
+	 *
+	 * @throws Send_Exception When it does not exist or cannot be decrypted.
+	 */
+	private function connection( string $label ): array {
+		try {
+			return $this->connections->get( $label );
+		} catch ( Connection_Exception $e ) {
+			throw new Send_Exception( esc_html( html_entity_decode( $e->getMessage(), ENT_QUOTES | ENT_HTML5, 'UTF-8' ) ), 'unknown_connection', 404, $e ); // phpcs:ignore WordPress.Security.EscapeOutput.ExceptionNotEscaped -- The message is escaped; the previous exception is chained, not output.
+		}
+	}
 }
