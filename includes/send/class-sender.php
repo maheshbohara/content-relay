@@ -322,4 +322,66 @@ final class Sender {
 
 		return self::with_progress( $state );
 	}
+
+	/**
+	 * The receiver's plan for the session (re-planned against the files it has).
+	 *
+	 * @param string    $session   Session id.
+	 * @param bool|null $overwrite Plan with or without overwrite; null keeps the session's setting.
+	 * @return array<string, mixed> Receiver session data: plan (items may carry a `diff`), files, files_pending.
+	 *
+	 * @throws Send_Exception When the receiver cannot be reached or refuses.
+	 */
+	public function plan( string $session, ?bool $overwrite = null ): array {
+		$state = $this->state( $session );
+		$data  = self::expect( $this->client( (string) $state['connection'] )->session( $session, $overwrite ), esc_html__( 'Cannot read the plan', 'content-relay' ) );
+
+		if ( is_array( $data['plan'] ?? null ) ) {
+			$plan = $data['plan'];
+			foreach ( array_keys( (array) $plan['items'] ) as $index ) {
+				unset( $plan['items'][ $index ]['diff'] );
+			}
+			$this->log->update( $session, Log_Table::OUT, array( 'plan' => $plan ) );
+		}
+
+		return $data;
+	}
+
+	/**
+	 * Applies the approved plan on the receiver.
+	 *
+	 * @param string    $session   Session id.
+	 * @param string    $plan_hash Hash of the approved plan.
+	 * @param bool|null $overwrite   The overwrite setting the plan was made with; null keeps the session's setting.
+	 * @param bool      $flush_cache Flush the receiver's whole object cache after applying.
+	 * @return array<string, mixed> Receiver session data with `result` and `apply_session`.
+	 *
+	 * @throws Send_Exception When the receiver does not apply; the session stays open.
+	 */
+	public function apply( string $session, string $plan_hash, ?bool $overwrite = null, bool $flush_cache = false ): array {
+		$state = $this->state( $session );
+		if ( function_exists( 'set_time_limit' ) ) {
+			set_time_limit( 0 ); // phpcs:ignore Squiz.PHP.DiscouragedFunctions.Discouraged -- Waits for the receiver to place media and commit.
+		}
+
+		$response = $this->client( (string) $state['connection'] )->apply( $session, $plan_hash, $overwrite, $flush_cache );
+		if ( ! $response['ok'] ) {
+			$this->log->update( $session, Log_Table::OUT, array( 'error' => $response['message'] ) );
+		}
+		$data = self::expect( $response, esc_html__( 'Relay not applied', 'content-relay' ) );
+
+		$this->log->update(
+			$session,
+			Log_Table::OUT,
+			array(
+				'status'        => Log_Table::STATUS_APPLIED,
+				'apply_session' => (string) ( $data['apply_session'] ?? '' ),
+				'result'        => $this->with_verification_plan( $session, $state, $data['result'] ?? null ),
+				'error'         => null,
+			)
+		);
+		$this->remove( $session );
+
+		return $data;
+	}
 }
