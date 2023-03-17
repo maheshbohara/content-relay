@@ -633,4 +633,73 @@ final class Sender {
 			throw new Send_Exception( esc_html( html_entity_decode( $e->getMessage(), ENT_QUOTES | ENT_HTML5, 'UTF-8' ) ), 'unknown_connection', 404, $e ); // phpcs:ignore WordPress.Security.EscapeOutput.ExceptionNotEscaped -- The message is escaped; the previous exception is chained, not output.
 		}
 	}
+
+	/**
+	 * Client for a stored connection.
+	 *
+	 * @param string $label Label.
+	 *
+	 * @throws Send_Exception When the connection cannot be used.
+	 */
+	private function client( string $label ): Client {
+		return new Client( $this->connection( $label ) );
+	}
+
+	/**
+	 * Manifest of an open session.
+	 *
+	 * @param string $session Session id.
+	 * @return array<string, mixed>
+	 *
+	 * @throws Send_Exception When it is missing.
+	 */
+	private function manifest( string $session ): array {
+		$manifest = $this->read( $session, 'manifest.json' );
+		if ( null === $manifest ) {
+			throw new Send_Exception( esc_html__( 'The manifest of this relay session is missing on this site.', 'content-relay' ), 'unknown_session', 404 );
+		}
+
+		return $manifest;
+	}
+
+	/**
+	 * An apply result with what verify() needs later: the relayed pages, the sender and the receiver's uploads URL.
+	 *
+	 * @param string               $session Session id.
+	 * @param array<string, mixed> $state   Session state.
+	 * @param mixed                $result  Receiver apply result.
+	 * @return array<string, mixed>|null
+	 */
+	private function with_verification_plan( string $session, array $state, $result ): ?array {
+		if ( ! is_array( $result ) ) {
+			return null;
+		}
+
+		$manifest = $this->read( $session, 'manifest.json' ) ?? array();
+		$objects  = (array) ( $manifest['objects'] ?? array() );
+		$targets  = array();
+		foreach ( (array) ( $result['written'] ?? array() ) as $row ) {
+			$key    = (string) ( $row['key'] ?? '' );
+			$record = $objects[ $key ] ?? null;
+			if ( ! is_array( $record ) || 'post' !== ( $record['kind'] ?? '' ) ) {
+				continue;
+			}
+			$targets[] = array(
+				'key'          => $key,
+				'url'          => (string) ( $row['url'] ?? '' ),
+				'language'     => $record['language'] ?? null,
+				'status'       => (string) ( $record['fields']['post_status'] ?? '' ),
+				'translations' => array_values( (array) ( $record['translations'] ?? array() ) ),
+			);
+		}
+
+		$uploads_url      = (string) ( $state['uploads_url'] ?? '' );
+		$result['verify'] = array(
+			'sender_home' => (string) ( $manifest['source']['home_url'] ?? home_url() ),
+			'uploads_url' => '' !== $uploads_url ? $uploads_url : untrailingslashit( (string) $state['receiver'] ) . '/wp-content/uploads',
+			'targets'     => $targets,
+		);
+
+		return $result;
+	}
 }
