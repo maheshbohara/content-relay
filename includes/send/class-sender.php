@@ -767,4 +767,41 @@ final class Sender {
 			throw new Send_Exception( esc_html__( 'Cannot write the outgoing relay state in uploads.', 'content-relay' ), 'storage_error', 500 );
 		}
 	}
+
+	/**
+	 * Reads a JSON file of a session.
+	 *
+	 * @param string $session Session id.
+	 * @param string $name    File name.
+	 * @return array<string, mixed>|null
+	 */
+	private function read( string $session, string $name ): ?array {
+		$path = $this->root . '/' . $session . '/' . $name;
+		if ( ! is_readable( $path ) ) {
+			return null;
+		}
+
+		$data = json_decode( (string) file_get_contents( $path ), true ); // phpcs:ignore WordPress.WP.AlternativeFunctions.file_get_contents_file_get_contents -- Local file inside uploads.
+
+		return is_array( $data ) ? $data : null;
+	}
+
+	/**
+	 * Removes a session's outgoing directory.
+	 *
+	 * @param string $session Session id.
+	 */
+	private function remove( string $session ): void {
+		$dir = $this->root . '/' . $session;
+		if ( ! Uuid::is_valid( $session ) || ! is_dir( $dir ) ) {
+			return;
+		}
+
+		foreach ( array( 'manifest.json', 'state.json' ) as $name ) {
+			if ( file_exists( $dir . '/' . $name ) ) {
+				wp_delete_file( $dir . '/' . $name );
+			}
+		}
+		rmdir( $dir ); // phpcs:ignore WordPress.WP.AlternativeFunctions.file_system_operations_rmdir -- Removes the emptied session directory.
+	}
 }
