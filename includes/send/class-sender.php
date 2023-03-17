@@ -702,4 +702,69 @@ final class Sender {
 
 		return $result;
 	}
+
+	/**
+	 * Upload progress per file, from the receiver's list of files it needs.
+	 *
+	 * @param array<string, mixed>             $manifest Manifest.
+	 * @param array<int, array<string, mixed>> $remote   Receiver's files: sha1, bytes, received, complete.
+	 * @return array<int, array{sha1: string, bytes: int, received: int, complete: bool, source: string, name: string}>
+	 */
+	private static function files_state( array $manifest, array $remote ): array {
+		$sources = array();
+		foreach ( (array) $manifest['objects'] as $record ) {
+			if ( isset( $record['file']['sha1'], $record['file']['source'] ) ) {
+				$sources[ (string) $record['file']['sha1'] ] = (string) $record['file']['source'];
+			}
+		}
+
+		$files = array();
+		foreach ( $remote as $file ) {
+			$sha1    = (string) ( $file['sha1'] ?? '' );
+			$source  = $sources[ $sha1 ] ?? '';
+			$files[] = array(
+				'sha1'     => $sha1,
+				'bytes'    => (int) ( $file['bytes'] ?? 0 ),
+				'received' => (int) ( $file['received'] ?? 0 ),
+				'complete' => ! empty( $file['complete'] ),
+				'source'   => $source,
+				'name'     => basename( $source ),
+			);
+		}
+
+		return $files;
+	}
+
+	/**
+	 * Writes a JSON file of a session, protecting the outgoing directory.
+	 *
+	 * @param string               $session Session id.
+	 * @param string               $name    File name.
+	 * @param array<string, mixed> $data    Data.
+	 *
+	 * @throws Send_Exception When the file cannot be written.
+	 */
+	private function write( string $session, string $name, array $data ): void {
+		$dir = $this->root . '/' . $session;
+		if ( ! Uuid::is_valid( $session ) || ! wp_mkdir_p( $dir ) ) {
+			throw new Send_Exception( esc_html__( 'Cannot create the outgoing relay directory in uploads.', 'content-relay' ), 'storage_error', 500 );
+		}
+
+		$parent = dirname( $this->root );
+		$guards = array(
+			$parent . '/index.php'     => "<?php\n// Silence is golden.\n",
+			$parent . '/.htaccess'     => "Require all denied\n",
+			$this->root . '/index.php' => "<?php\n// Silence is golden.\n",
+		);
+		foreach ( $guards as $guard => $contents ) {
+			if ( ! file_exists( $guard ) ) {
+				file_put_contents( $guard, $contents ); // phpcs:ignore WordPress.WP.AlternativeFunctions.file_system_operations_file_put_contents -- Writes inside uploads during a request; WP_Filesystem may require credentials.
+			}
+		}
+
+		// phpcs:ignore WordPress.WP.AlternativeFunctions.file_system_operations_file_put_contents -- See above.
+		if ( false === file_put_contents( $dir . '/' . $name, (string) wp_json_encode( $data, JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE ), LOCK_EX ) ) {
+			throw new Send_Exception( esc_html__( 'Cannot write the outgoing relay state in uploads.', 'content-relay' ), 'storage_error', 500 );
+		}
+	}
 }
