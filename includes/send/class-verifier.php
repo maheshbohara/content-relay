@@ -265,4 +265,38 @@ final class Verifier {
 
 		return is_wp_error( $response ) || is_array( $response ) ? $response : new \WP_Error( 'content_relay_no_response', 'No response.' );
 	}
+
+	/**
+	 * The address a response ended at after redirects.
+	 *
+	 * @param array<string, mixed> $response Response.
+	 * @param string               $fallback Requested URL.
+	 */
+	private static function final_url( array $response, string $fallback ): string {
+		$http = $response['http_response'] ?? null;
+		if ( $http instanceof \WP_HTTP_Requests_Response ) {
+			$url = $http->get_response_object()->url;
+			if ( '' !== $url ) {
+				return $url;
+			}
+		}
+
+		return $fallback;
+	}
+
+	/**
+	 * One check result.
+	 *
+	 * @param string $check   Check id.
+	 * @param bool   $ok      Passed.
+	 * @param string $message Plain-text detail.
+	 * @return array{check: string, ok: bool, message: string}
+	 */
+	private static function check( string $check, bool $ok, string $message ): array {
+		return array(
+			'check'   => $check,
+			'ok'      => $ok,
+			'message' => $message,
+		);
+	}
 }
