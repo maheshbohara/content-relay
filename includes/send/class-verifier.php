@@ -218,4 +218,51 @@ final class Verifier {
 
 		return $page;
 	}
+
+	/**
+	 * Whether an image answers 200 (HEAD, or a short GET where HEAD is refused).
+	 *
+	 * @param string $url Image URL.
+	 */
+	private function asset_loads( string $url ): bool {
+		$response = $this->request( 'HEAD', $url, self::ASSET_TIMEOUT, 2 );
+		$code     = is_wp_error( $response ) ? 0 : (int) wp_remote_retrieve_response_code( $response );
+
+		if ( in_array( $code, array( 403, 405, 501 ), true ) ) {
+			$response = $this->request( 'GET', $url, self::ASSET_TIMEOUT, 2, 1024 );
+			$code     = is_wp_error( $response ) ? 0 : (int) wp_remote_retrieve_response_code( $response );
+		}
+
+		return 200 === $code;
+	}
+
+	/**
+	 * Sends one request.
+	 *
+	 * @param string $method    HTTP method.
+	 * @param string $url       URL.
+	 * @param int    $timeout   Seconds.
+	 * @param int    $redirects Redirects followed.
+	 * @param int    $limit     Bytes of body read; 0 for all.
+	 * @return array<string, mixed>|\WP_Error
+	 */
+	private function request( string $method, string $url, int $timeout, int $redirects, int $limit = 0 ) {
+		$args = array(
+			'method'      => $method,
+			'timeout'     => $timeout,
+			'redirection' => $redirects,
+			'user-agent'  => 'ContentRelay/' . CONTENT_RELAY_VERSION . ' (verification)',
+			'headers'     => array( 'Accept' => 'GET' === $method ? 'text/html,*/*' : '*/*' ),
+		);
+		if ( $limit > 0 ) {
+			$args['limit_response_size'] = $limit;
+		}
+
+		/** This filter is documented in includes/connection/class-client.php */
+		$args = (array) apply_filters( 'content_relay_http_args', $args, $url );
+
+		$response = call_user_func( $this->transport, $url, $args );
+
+		return is_wp_error( $response ) || is_array( $response ) ? $response : new \WP_Error( 'content_relay_no_response', 'No response.' );
+	}
 }
