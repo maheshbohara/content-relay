@@ -37,4 +37,58 @@ final class Verifier {
 	 * Seconds an image request may take.
 	 */
 	private const ASSET_TIMEOUT = 10;
+
+	/**
+	 * Request function with the signature of wp_remote_request().
+	 *
+	 * @var callable
+	 */
+	private $transport;
+
+	/**
+	 * Constructor.
+	 *
+	 * @param callable|null $transport Request function; defaults to wp_remote_request().
+	 */
+	public function __construct( ?callable $transport = null ) {
+		$this->transport = null === $transport ? 'wp_remote_request' : $transport;
+	}
+
+	/**
+	 * Verifies relayed pages.
+	 *
+	 * @param array<int, array<string, mixed>> $targets     Pages: key, url, language, status and translations (keys).
+	 * @param string                           $sender_home Sender home URL.
+	 * @param string                           $uploads_url Receiver uploads URL.
+	 * @return array{checked_at: string, ok: bool, pages: array<int, array<string, mixed>>, problems: string[]}
+	 */
+	public function verify( array $targets, string $sender_home, string $uploads_url ): array {
+		$urls = array();
+		foreach ( $targets as $target ) {
+			$urls[ (string) ( $target['key'] ?? '' ) ] = (string) ( $target['url'] ?? '' );
+		}
+
+		$sender_host = strtolower( (string) wp_parse_url( $sender_home, PHP_URL_HOST ) );
+		$budget      = self::MAX_ASSETS;
+		$assets      = array();
+		$pages       = array();
+		$problems    = array();
+
+		foreach ( $targets as $target ) {
+			$page = $this->page( $target, $urls, $sender_host, $uploads_url, $budget, $assets );
+			foreach ( $page['checks'] as $check ) {
+				if ( ! $check['ok'] ) {
+					$problems[] = sprintf( '%1$s: %2$s', '' === $page['url'] ? $page['key'] : $page['url'], $check['message'] );
+				}
+			}
+			$pages[] = $page;
+		}
+
+		return array(
+			'checked_at' => gmdate( 'c' ),
+			'ok'         => array() === $problems,
+			'pages'      => $pages,
+			'problems'   => $problems,
+		);
+	}
 }
