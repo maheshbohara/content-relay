@@ -69,4 +69,40 @@ final class Page_Checks_Test extends TestCase {
 		$this->assertSame( 0, Page_Checks::sender_urls( $html, '' )['count'] );
 		$this->assertCount( 1, Page_Checks::sender_urls( $html, 'wtcwinnipeg.com', 1 )['snippets'] );
 	}
+
+	/**
+	 * Upload assets come from src, srcset and lazy-load attributes, under the uploads URL only, unique and capped.
+	 */
+	public function test_upload_assets(): void {
+		$uploads = 'https://receiver.test/wp-content/uploads/';
+		$html    = '<img src="https://receiver.test/wp-content/uploads/2026/09/a.jpg" srcset="https://receiver.test/wp-content/uploads/2026/09/a-300x200.jpg 300w, //receiver.test/wp-content/uploads/2026/09/a-768x512.jpg 768w">';
+		$html   .= '<img src="https://receiver.test/wp-content/uploads/2026/09/a.jpg">';
+		$html   .= '<img data-src="http://receiver.test/wp-content/uploads/2026/09/b.png" src="data:image/gif;base64,R0lGOD">';
+		$html   .= '<picture><source srcset="https://receiver.test/wp-content/uploads/2026/09/c.webp"></picture>';
+		$html   .= '<img src="https://cdn.other.test/wp-content/uploads/d.jpg"><img src="https://receiver.test/wp-content/themes/x/logo.svg">';
+
+		$this->assertSame(
+			array(
+				'https://receiver.test/wp-content/uploads/2026/09/a.jpg',
+				'https://receiver.test/wp-content/uploads/2026/09/a-300x200.jpg',
+				'//receiver.test/wp-content/uploads/2026/09/a-768x512.jpg',
+				'http://receiver.test/wp-content/uploads/2026/09/b.png',
+				'https://receiver.test/wp-content/uploads/2026/09/c.webp',
+			),
+			Page_Checks::upload_assets( $html, $uploads )
+		);
+		$this->assertCount( 2, Page_Checks::upload_assets( $html, $uploads, 2 ) );
+		$this->assertSame( array(), Page_Checks::upload_assets( $html, '' ) );
+	}
+
+	/**
+	 * URL comparison ignores scheme, host case, trailing slashes and percent-encoding, but not the path or query.
+	 */
+	public function test_same_url(): void {
+		$this->assertTrue( Page_Checks::same_url( 'https://Receiver.test/fr/caf%C3%A9/', 'http://receiver.test/fr/café' ) );
+		$this->assertTrue( Page_Checks::same_url( 'https://receiver.test', 'https://receiver.test/' ) );
+		$this->assertFalse( Page_Checks::same_url( 'https://receiver.test/fr/a/', 'https://receiver.test/fr/b/' ) );
+		$this->assertFalse( Page_Checks::same_url( 'https://receiver.test/?p=1', 'https://receiver.test/?p=2' ) );
+		$this->assertFalse( Page_Checks::same_url( 'https://receiver.test:8443/', 'https://receiver.test/' ) );
+	}
 }
