@@ -131,4 +131,38 @@ final class Command {
 		/* translators: 1: directory path, 2: number of objects, 3: number of files copied, 4: number of warnings. */
 		\WP_CLI::success( sprintf( __( 'Bundle written to %1$s: %2$d objects, %3$d files, %4$d warnings.', 'content-relay' ), $dir, count( $manifest['objects'] ), $copied, count( $manifest['warnings'] ) ) );
 	}
+
+	/**
+	 * Exports a manifest or stops with an error.
+	 *
+	 * @param int $post_id Root post id.
+	 * @return array<string, mixed>
+	 */
+	private function export( int $post_id ): array {
+		try {
+			return ( new Exporter( new Export_Context( Adapter_Factory::create() ) ) )->export( $post_id );
+		} catch ( Export_Exception $e ) {
+			\WP_CLI::error( $e->getMessage() );
+		}
+
+		return array();
+	}
+
+	/**
+	 * One-line description of an object.
+	 *
+	 * @param array<string, mixed> $record Object.
+	 */
+	private function describe( array $record ): string {
+		switch ( $record['kind'] ) {
+			case 'attachment':
+				return isset( $record['file']['relative'] ) ? (string) $record['file']['relative'] : '(no file)';
+			case 'term':
+				return $record['taxonomy'] . '/' . $record['slug'];
+			case 'user':
+				return (string) $record['login'];
+			default:
+				return $record['post_type'] . ' /' . $record['path'] . '/';
+		}
+	}
 }
