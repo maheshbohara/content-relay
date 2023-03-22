@@ -76,4 +76,42 @@ final class Connections_Command {
 		/* translators: 1: connection label, 2: URL of the receiving site, 3: WordPress version, 4: theme stylesheet, 5: theme version. */
 		\WP_CLI::success( sprintf( __( 'Connection "%1$s" added: %2$s (WordPress %3$s, theme %4$s %5$s).', 'content-relay' ), $label, $environment['home_url'] ?? $key['url'], $environment['wp'] ?? '?', $environment['theme']['stylesheet'] ?? '?', $environment['theme']['version'] ?? '?' ) );
 	}
+
+	/**
+	 * Lists connections.
+	 *
+	 * ## OPTIONS
+	 *
+	 * [--format=<format>]
+	 * : Output format.
+	 * ---
+	 * default: table
+	 * options:
+	 *   - table
+	 *   - json
+	 * ---
+	 *
+	 * @subcommand list
+	 *
+	 * @param array<int, string>    $args       Positional arguments.
+	 * @param array<string, string> $assoc_args Named arguments.
+	 */
+	public function list_( array $args, array $assoc_args ): void {
+		unset( $args );
+
+		$option = get_option( Connections::OPTION, array() );
+		$rows   = array();
+		foreach ( is_array( $option ) ? $option : array() as $label => $record ) {
+			$user   = get_userdata( (int) ( $record['added_by'] ?? 0 ) );
+			$rows[] = array(
+				'label'    => $label,
+				'url'      => $record['url'] ?? '',
+				'kid'      => $record['kid'] ?? '',
+				'added_by' => $user instanceof \WP_User ? $user->user_login : '',
+				'added_at' => $record['added_at'] ?? '',
+			);
+		}
+
+		\WP_CLI\Utils\format_items( (string) ( $assoc_args['format'] ?? 'table' ), $rows, array( 'label', 'url', 'kid', 'added_by', 'added_at' ) );
+	}
 }
