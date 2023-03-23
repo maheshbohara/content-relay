@@ -114,4 +114,65 @@ final class Connections_Command {
 
 		\WP_CLI\Utils\format_items( (string) ( $assoc_args['format'] ?? 'table' ), $rows, array( 'label', 'url', 'kid', 'added_by', 'added_at' ) );
 	}
+
+	/**
+	 * Runs a handshake with a receiver and prints its environment.
+	 *
+	 * ## OPTIONS
+	 *
+	 * <label>
+	 * : Connection label.
+	 *
+	 * @param array<int, string> $args Positional arguments.
+	 */
+	public function test( array $args ): void {
+		$environment = self::handshake( self::client( (string) $args[0] ) );
+
+		$skew  = (int) ( $environment['server_time'] ?? 0 ) - time();
+		$theme = wp_get_theme();
+		$rows  = array(
+			array(
+				'field' => 'home_url',
+				'value' => $environment['home_url'] ?? '',
+			),
+			array(
+				'field' => 'plugin / schema',
+				'value' => sprintf( '%1$s / %2$s', $environment['plugin'] ?? '?', $environment['schema'] ?? '?' ),
+			),
+			array(
+				'field' => 'php / wp',
+				'value' => sprintf( '%1$s / %2$s', $environment['php'] ?? '?', $environment['wp'] ?? '?' ),
+			),
+			array(
+				'field' => 'theme',
+				'value' => sprintf( '%1$s %2$s', $environment['theme']['stylesheet'] ?? '?', $environment['theme']['version'] ?? '?' ),
+			),
+			array(
+				'field' => 'language',
+				'value' => sprintf( '%1$s (default %2$s; %3$s)', $environment['language']['adapter'] ?? '?', $environment['language']['default'] ?? '-', implode( ', ', (array) ( $environment['language']['active'] ?? array() ) ) ),
+			),
+			array(
+				'field' => 'plugins',
+				'value' => (string) wp_json_encode( $environment['plugins'] ?? array() ),
+			),
+			array(
+				'field' => 'max chunk',
+				'value' => size_format( (int) ( $environment['limits']['max_chunk_bytes'] ?? 0 ) ),
+			),
+			array(
+				'field' => 'clock difference',
+				'value' => sprintf( '%+d s', $skew ),
+			),
+		);
+		\WP_CLI\Utils\format_items( 'table', $rows, array( 'field', 'value' ) );
+
+		if ( abs( $skew ) > 60 ) {
+			\WP_CLI::warning( __( 'The clocks of the two sites differ by more than a minute; requests are refused beyond 300 s.', 'content-relay' ) );
+		}
+		if ( ( $environment['theme']['stylesheet'] ?? '' ) !== get_stylesheet() || (string) ( $environment['theme']['version'] ?? '' ) !== (string) $theme->get( 'Version' ) ) {
+			\WP_CLI::warning( __( 'The receiver runs a different theme or theme version; relays will be blocked until it is deployed.', 'content-relay' ) );
+		}
+
+		\WP_CLI::success( __( 'Handshake succeeded.', 'content-relay' ) );
+	}
 }
