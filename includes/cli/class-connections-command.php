@@ -175,4 +175,78 @@ final class Connections_Command {
 
 		\WP_CLI::success( __( 'Handshake succeeded.', 'content-relay' ) );
 	}
+
+	/**
+	 * Removes a connection. The receiver's key stays valid until it is revoked there.
+	 *
+	 * ## OPTIONS
+	 *
+	 * <label>
+	 * : Connection label.
+	 *
+	 * @param array<int, string> $args Positional arguments.
+	 */
+	public function remove( array $args ): void {
+		if ( ! self::store()->remove( (string) $args[0] ) ) {
+			/* translators: %s: connection label. */
+			\WP_CLI::error( sprintf( __( 'There is no connection named "%s".', 'content-relay' ), $args[0] ) );
+		}
+
+		/* translators: %s: connection label. */
+		\WP_CLI::success( sprintf( __( 'Connection "%s" removed. Revoke its key on the receiver too.', 'content-relay' ), $args[0] ) );
+	}
+
+	/**
+	 * Client for a stored connection, or stops with an error.
+	 *
+	 * @param string $label Connection label.
+	 */
+	public static function client( string $label ): Client {
+		try {
+			return new Client( self::store()->get( $label ) );
+		} catch ( Connection_Exception $e ) {
+			\WP_CLI::error( $e->getMessage() );
+		}
+
+		exit( 1 );
+	}
+
+	/**
+	 * Runs a handshake and checks the receiver speaks this site's manifest schema, or stops with an error.
+	 *
+	 * @param Client $client Client.
+	 * @return array<string, mixed> Receiver environment.
+	 */
+	public static function handshake( Client $client ): array {
+		$response = $client->handshake();
+		if ( ! $response['ok'] ) {
+			/* translators: 1: HTTP status code, 2: error code, 3: error message. */
+			\WP_CLI::error( sprintf( __( 'Handshake failed (HTTP %1$d, %2$s): %3$s', 'content-relay' ), $response['status'], $response['code'], $response['message'] ) );
+		}
+
+		$environment = $response['data'];
+		if ( CONTENT_RELAY_SCHEMA !== ( $environment['schema'] ?? null ) ) {
+			/* translators: 1: manifest schema the receiver reads (JSON), 2: manifest schema this site writes. */
+			\WP_CLI::error( sprintf( __( 'The receiver reads manifest schema %1$s; this site writes schema %2$d. Update the plugin on both sites.', 'content-relay' ), (string) wp_json_encode( $environment['schema'] ?? null ), (int) CONTENT_RELAY_SCHEMA ) );
+		}
+
+		return $environment;
+	}
+
+	/**
+	 * Connection store, or stops when sending is off or no key material is configured.
+	 */
+	private static function store(): Connections {
+		if ( ! Config::can_send() ) {
+			\WP_CLI::error( __( 'Sending is off on this site. Switch it on under Settings → Content Relay first.', 'content-relay' ) );
+		}
+
+		$vault = Vault::from_config();
+		if ( null === $vault ) {
+			\WP_CLI::error( __( 'No key material to encrypt connection keys: define CONTENT_RELAY_ENCRYPTION_KEY (32+ characters) or real AUTH_KEY and SECURE_AUTH_KEY salts in wp-config.php.', 'content-relay' ) );
+			exit( 1 );
+		}
+
+		return new Connections( $vault );
+	}
 }
