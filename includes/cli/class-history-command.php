@@ -72,4 +72,41 @@ final class History_Command {
 
 		\WP_CLI\Utils\format_items( (string) ( $assoc_args['format'] ?? 'table' ), $rows, array( 'created_at', 'direction', 'root_title', 'languages', 'peer_url', 'user_login', 'status', 'session' ) );
 	}
+
+	/**
+	 * Confirms sent relays marked applied with their receivers. A rollback found there updates the log; a status the
+	 * receiver did not confirm is shown as `applied (unknown)` or `applied (unreachable)`.
+	 *
+	 * @param array<int, array<string, mixed>> $rows Rows.
+	 * @return array<int, array<string, mixed>>
+	 */
+	private static function confirm( array $rows ): array {
+		if ( ! Config::can_send() ) {
+			return $rows;
+		}
+		try {
+			$sender = Sender::for_site();
+		} catch ( Send_Exception $e ) {
+			return $rows;
+		}
+
+		$unreachable = array();
+		foreach ( $rows as $index => $row ) {
+			if ( Log_Table::OUT !== $row['direction'] || Log_Table::STATUS_APPLIED !== $row['status'] ) {
+				continue;
+			}
+
+			$connection = (string) $row['connection'];
+			$state      = isset( $unreachable[ $connection ] ) ? 'unreachable' : $sender->refresh_status( (string) $row['session'] );
+			if ( 'unreachable' === $state ) {
+				$unreachable[ $connection ] = true;
+			}
+
+			if ( Log_Table::STATUS_APPLIED !== $state ) {
+				$rows[ $index ]['status'] = Log_Table::STATUS_ROLLED_BACK === $state ? $state : sprintf( 'applied (%s)', $state );
+			}
+		}
+
+		return $rows;
+	}
 }
