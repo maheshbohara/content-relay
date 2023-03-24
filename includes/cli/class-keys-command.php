@@ -93,4 +93,33 @@ final class Keys_Command {
 
 		\WP_CLI\Utils\format_items( (string) ( $assoc_args['format'] ?? 'table' ), $rows, array( 'kid', 'label', 'created_by', 'created_at', 'last_used', 'status' ) );
 	}
+
+	/**
+	 * Revokes a key. Requests signed with it are refused from now on.
+	 *
+	 * ## OPTIONS
+	 *
+	 * <kid>
+	 * : Key id.
+	 *
+	 * @param array<int, string> $args Positional arguments.
+	 */
+	public function revoke( array $args ): void {
+		if ( ! ( new Receiver_Keys() )->revoke( (string) $args[0] ) ) {
+			/* translators: %s: key id. */
+			\WP_CLI::error( sprintf( __( 'No active key %s.', 'content-relay' ), $args[0] ) );
+		}
+
+		/* translators: %s: key id. */
+		\WP_CLI::success( sprintf( __( 'Key %s revoked.', 'content-relay' ), $args[0] ) );
+	}
+
+	/**
+	 * Stops unless receiving is on.
+	 */
+	private static function require_receiving(): void {
+		if ( ! Config::can_receive() ) {
+			\WP_CLI::error( __( 'Receiving is off on this site. Switch it on under Settings → Content Relay first.', 'content-relay' ) );
+		}
+	}
 }
