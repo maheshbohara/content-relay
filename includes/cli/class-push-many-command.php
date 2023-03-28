@@ -175,4 +175,79 @@ final class Push_Many_Command {
 		}
 		\WP_CLI::success( $dry_run ? __( 'Dry run complete; nothing was written.', 'content-relay' ) : __( 'Every group was relayed and verified.', 'content-relay' ) );
 	}
+
+	/**
+	 * Plans or relays each root, printing progress, then a summary and every warning, blocker and error.
+	 *
+	 * @param Batch_Relay $batch     Batch relay.
+	 * @param int[]       $roots     One post id per translation group.
+	 * @param string      $label     Connection label.
+	 * @param bool        $overwrite Overwrite receiver changes.
+	 * @param bool        $dry_run   Plan only.
+	 * @param string      $format    Summary format.
+	 * @param bool        $skip      Leave groups that already exist on the receiver alone.
+	 * @return array<int, array<string, mixed>> Outcomes.
+	 */
+	private function run( Batch_Relay $batch, array $roots, string $label, bool $overwrite, bool $dry_run, string $format, bool $skip ): array {
+		$outcomes = array();
+		$total    = count( $roots );
+		foreach ( $roots as $index => $root ) {
+			$outcome    = $batch->relay_one( $root, $label, $overwrite, $dry_run, $skip );
+			$outcomes[] = $outcome;
+			/* translators: 1: position, 2: total, 3: post id, 4: status, 5: post title. */
+			\WP_CLI::log( sprintf( __( '[%1$d/%2$d] %3$d %4$s — %5$s', 'content-relay' ), $index + 1, $total, $root, $outcome['status'], $outcome['title'] ) );
+		}
+
+		$rows = array_map(
+			static function ( array $o ): array {
+				$changes = array();
+				foreach ( $o['changes'] as $action => $count ) {
+					$changes[] = $action . ' ' . $count;
+				}
+				return array(
+					'post_id'   => $o['post_id'],
+					'title'     => wp_html_excerpt( (string) $o['title'], 60, '…' ),
+					'languages' => implode( ',', $o['languages'] ),
+					'status'    => $o['status'],
+					'changes'   => implode( ', ', $changes ),
+					'files'     => $o['files'],
+					'warnings'  => count( $o['warnings'] ),
+					'verified'  => null === $o['verified'] ? '' : ( $o['verified'] ? 'yes' : 'NO' ),
+					'session'   => $o['session'],
+				);
+			},
+			$outcomes
+		);
+
+		if ( 'json' === $format ) {
+			\WP_CLI::line( (string) wp_json_encode( $outcomes, JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE ) );
+			return $outcomes;
+		}
+
+		$fields = $dry_run ? array( 'post_id', 'title', 'languages', 'status', 'changes', 'files', 'warnings' ) : array( 'post_id', 'title', 'languages', 'status', 'changes', 'files', 'warnings', 'verified', 'session' );
+		\WP_CLI\Utils\format_items( 'table', $rows, $fields );
+
+		$totals = array_count_values( array_map( static fn( array $o ): string => (string) $o['status'], $outcomes ) );
+		ksort( $totals );
+		$parts = array();
+		foreach ( $totals as $status => $count ) {
+			$parts[] = $status . ': ' . $count;
+		}
+		/* translators: %s: counts by status. */
+		\WP_CLI::log( sprintf( __( 'Totals — %s', 'content-relay' ), implode( ', ', $parts ) ) );
+
+		foreach ( $outcomes as $o ) {
+			foreach ( $o['blockers'] as $blocker ) {
+				\WP_CLI::log( \WP_CLI::colorize( '%R' . __( 'Blocked:', 'content-relay' ) . '%n ' ) . $o['post_id'] . ' — ' . $blocker );
+			}
+			if ( '' !== $o['error'] ) {
+				\WP_CLI::log( \WP_CLI::colorize( '%R' . __( 'Failed:', 'content-relay' ) . '%n ' ) . $o['post_id'] . ' — ' . $o['error'] );
+			}
+			foreach ( $o['warnings'] as $warning ) {
+				\WP_CLI::warning( $o['post_id'] . ' — ' . $warning );
+			}
+		}
+
+		return $outcomes;
+	}
 }
