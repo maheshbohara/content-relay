@@ -63,4 +63,34 @@ final class Verify_Command {
 		}
 		\WP_CLI::success( __( 'Every check on the receiving site passed.', 'content-relay' ) );
 	}
+
+	/**
+	 * Prints a verification report as a table.
+	 *
+	 * @param array<string, mixed> $report Report from Sender::verify().
+	 */
+	public static function print( array $report ): void {
+		$rows = array();
+		foreach ( (array) ( $report['pages'] ?? array() ) as $page ) {
+			if ( ! empty( $page['skipped'] ) ) {
+				$rows[] = array(
+					'page'    => (string) $page['url'],
+					'check'   => '-',
+					'result'  => 'skipped',
+					'message' => (string) $page['note'],
+				);
+				continue;
+			}
+			foreach ( (array) $page['checks'] as $check ) {
+				$rows[] = array(
+					'page'    => (string) $page['url'],
+					'check'   => (string) $check['check'],
+					'result'  => $check['ok'] ? 'pass' : 'FAIL',
+					'message' => (string) $check['message'],
+				);
+			}
+		}
+
+		\WP_CLI\Utils\format_items( 'table', $rows, array( 'page', 'check', 'result', 'message' ) );
+	}
 }
