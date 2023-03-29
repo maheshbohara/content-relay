@@ -141,4 +141,49 @@ final class Receive_Command {
 			\WP_CLI::error( __( 'Relay applied, but verification found problems.', 'content-relay' ) );
 		}
 	}
+
+	/**
+	 * Undoes a relay on this site: restores what it replaced and removes what it created.
+	 *
+	 * ## OPTIONS
+	 *
+	 * <session>
+	 * : Session id printed by `wp content-relay apply` — or, with --to, the relay session id printed by `wp content-relay push`.
+	 *
+	 * [--to=<connection>]
+	 * : Roll back a relay this site pushed to a connected site, instead of a relay received here.
+	 *
+	 * [--overwrite]
+	 * : Roll back even if the relayed objects were changed after the relay.
+	 *
+	 * [--yes]
+	 * : Roll back without asking for confirmation.
+	 *
+	 * ## EXAMPLES
+	 *
+	 *     wp content-relay rollback 71171611-8199-44be-be66-bde437e58202
+	 *     wp content-relay rollback 0f8e7c1a-1b2c-4d5e-8f90-a1b2c3d4e5f6 --to=prod
+	 *
+	 * @param array<int, string>         $args       Positional arguments.
+	 * @param array<string, string|bool> $assoc_args Named arguments.
+	 */
+	public function rollback( array $args, array $assoc_args ): void {
+		if ( isset( $assoc_args['to'] ) ) {
+			$this->remote_rollback( (string) $args[0], (string) $assoc_args['to'], $assoc_args );
+			return;
+		}
+
+		/* translators: %s: session id. */
+		\WP_CLI::confirm( sprintf( __( 'Roll back relay session %s?', 'content-relay' ), $args[0] ), $assoc_args );
+
+		try {
+			$summary = ( new \ContentRelay\Apply\Rollback( new Receive_Context( Adapter_Factory::create() ) ) )->rollback( (string) $args[0], (bool) ( $assoc_args['overwrite'] ?? false ) );
+		} catch ( \ContentRelay\Apply\Apply_Exception $e ) {
+			\WP_CLI::error( $e->getMessage() );
+			return;
+		}
+
+		/* translators: 1: session id, 2: objects restored, 3: objects removed, 4: terms removed, 5: files removed. */
+		\WP_CLI::success( sprintf( __( 'Rolled back %1$s: %2$d restored, %3$d removed, %4$d terms removed, %5$d files removed.', 'content-relay' ), $summary['session'], count( $summary['restored'] ), count( $summary['deleted'] ), count( $summary['terms'] ), $summary['files'] ) );
+	}
 }
