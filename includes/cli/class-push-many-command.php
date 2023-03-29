@@ -250,4 +250,38 @@ final class Push_Many_Command {
 
 		return $outcomes;
 	}
+
+	/**
+	 * Post ids matching --post_type, --tag, --category and --post_status, in every language.
+	 *
+	 * Language filtering is suppressed: a translation can carry a term its original lacks, and that group must be
+	 * selected too. The slug then matches the term in each language.
+	 *
+	 * @param array<string, string|bool> $assoc_args Named arguments.
+	 * @return int[]
+	 */
+	private static function select( array $assoc_args ): array {
+		$query = array(
+			'post_type'        => (string) ( $assoc_args['post_type'] ?? 'post' ),
+			'post_status'      => (string) ( $assoc_args['post_status'] ?? 'publish' ),
+			'posts_per_page'   => -1,
+			'fields'           => 'ids',
+			'orderby'          => 'date',
+			'order'            => 'DESC',
+			'no_found_rows'    => true,
+			// phpcs:ignore WordPressVIPMinimum.Performance.WPQueryParams.SuppressFilters_suppress_filters -- WP-CLI only; the language filter must not hide translations (see above).
+			'suppress_filters' => true,
+		);
+		if ( isset( $assoc_args['tag'] ) ) {
+			$query['tag'] = (string) $assoc_args['tag'];
+		}
+		if ( isset( $assoc_args['category'] ) ) {
+			$query['category_name'] = (string) $assoc_args['category'];
+		}
+		if ( ! isset( $query['tag'] ) && ! isset( $query['category_name'] ) && empty( $assoc_args['all'] ) ) {
+			\WP_CLI::error( __( 'Give post ids, or select with --tag, --category or --all.', 'content-relay' ) );
+		}
+
+		return array_map( 'intval', get_posts( $query ) );
+	}
 }
