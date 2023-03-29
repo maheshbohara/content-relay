@@ -236,4 +236,37 @@ final class Receive_Command {
 
 		return (array) ( $data['plan'] ?? array() );
 	}
+
+	/**
+	 * Cancels a planning session on the receiving site, warning (not stopping) on failure.
+	 *
+	 * @param Sender|null $sender  Sender.
+	 * @param string      $session Session id, or '' when none was opened.
+	 */
+	private static function cancel( ?Sender $sender, string $session ): void {
+		if ( null === $sender || '' === $session ) {
+			return;
+		}
+
+		try {
+			$sender->abort( $session );
+		} catch ( Send_Exception $e ) {
+			\WP_CLI::warning( $e->plain_message() );
+		}
+	}
+
+	/**
+	 * Loads a bundle or stops with an error.
+	 *
+	 * @param string $dir Bundle directory.
+	 */
+	private function bundle( string $dir ): Bundle {
+		try {
+			return Bundle::from_directory( $dir );
+		} catch ( Receive_Exception $e ) {
+			\WP_CLI::error( $e->getMessage() );
+		}
+
+		return new Bundle( array(), '' );
+	}
 }
