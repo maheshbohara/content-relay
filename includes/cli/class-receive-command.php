@@ -186,4 +186,54 @@ final class Receive_Command {
 		/* translators: 1: session id, 2: objects restored, 3: objects removed, 4: terms removed, 5: files removed. */
 		\WP_CLI::success( sprintf( __( 'Rolled back %1$s: %2$d restored, %3$d removed, %4$d terms removed, %5$d files removed.', 'content-relay' ), $summary['session'], count( $summary['restored'] ), count( $summary['deleted'] ), count( $summary['terms'] ), $summary['files'] ) );
 	}
+
+	/**
+	 * Rolls back a session on a connected receiver.
+	 *
+	 * @param string                     $session    Relay session id.
+	 * @param string                     $label      Connection label.
+	 * @param array<string, string|bool> $assoc_args Named arguments.
+	 */
+	private function remote_rollback( string $session, string $label, array $assoc_args ): void {
+		/* translators: 1: relay session id, 2: connection label. */
+		\WP_CLI::confirm( sprintf( __( 'Roll back relay session %1$s on "%2$s"?', 'content-relay' ), $session, $label ), $assoc_args );
+
+		try {
+			$data = Sender::for_site()->rollback( $session, (bool) ( $assoc_args['overwrite'] ?? false ), $label );
+		} catch ( Send_Exception $e ) {
+			\WP_CLI::error( $e->plain_message() );
+			return;
+		}
+
+		$summary = (array) $data['rollback'];
+		/* translators: 1: relay session id, 2: connection label, 3: objects restored, 4: objects removed, 5: terms removed, 6: files removed. */
+		\WP_CLI::success( sprintf( __( 'Rolled back %1$s on "%2$s": %3$d restored, %4$d removed, %5$d terms removed, %6$d files removed.', 'content-relay' ), $session, $label, count( (array) $summary['restored'] ), count( (array) $summary['deleted'] ), count( (array) $summary['terms'] ), (int) $summary['files'] ) );
+	}
+
+	/**
+	 * Asks a connected site for its plan of a page, then cancels the session there.
+	 *
+	 * @param int    $post_id   Page id.
+	 * @param string $label     Connection label.
+	 * @param bool   $overwrite Plan with overwrite.
+	 * @return array<string, mixed> Plan; items that would replace something carry a `diff`.
+	 */
+	private function remote_plan( int $post_id, string $label, bool $overwrite ): array {
+		$sender  = null;
+		$session = '';
+
+		try {
+			$sender  = Sender::for_site();
+			$session = (string) $sender->start( $post_id, $label, $overwrite )['session'];
+			$data    = $sender->plan( $session );
+		} catch ( Send_Exception $e ) {
+			self::cancel( $sender, $session );
+			\WP_CLI::error( $e->plain_message() );
+			return array();
+		}
+
+		self::cancel( $sender, $session );
+
+		return (array) ( $data['plan'] ?? array() );
+	}
 }
