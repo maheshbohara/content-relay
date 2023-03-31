@@ -105,4 +105,82 @@ final class History_Page {
 			$this->rollback_received( $log, $row, $overwrite );
 		}
 	}
+
+	/**
+	 * Renders the page.
+	 */
+	public function render(): void {
+		if ( ! current_user_can( 'manage_options' ) ) {
+			return;
+		}
+
+		// phpcs:disable WordPress.Security.NonceVerification.Recommended -- Read-only filter and pagination.
+		$direction = isset( $_GET['direction'] ) ? sanitize_key( wp_unslash( $_GET['direction'] ) ) : '';
+		$paged     = isset( $_GET['paged'] ) ? max( 1, absint( $_GET['paged'] ) ) : 1;
+		// phpcs:enable
+		$direction = in_array( $direction, array( Log_Table::OUT, Log_Table::IN ), true ) ? $direction : null;
+
+		$log   = new Log_Table();
+		$total = $log->count( $direction );
+		$rows  = $log->recent( $direction, self::PER_PAGE, ( $paged - 1 ) * self::PER_PAGE );
+
+		echo '<div class="wrap content-relay">';
+		echo '<h1>' . esc_html__( 'Content Relay history', 'content-relay' ) . '</h1>';
+		foreach ( $this->notices as $notice ) {
+			printf( '<div class="notice notice-%1$s"><p>%2$s</p></div>', esc_attr( $notice['type'] ), esc_html( $notice['message'] ) );
+		}
+
+		$filters = array(
+			''             => array( __( 'All', 'content-relay' ), $log->count( null ) ),
+			Log_Table::OUT => array( __( 'Sent', 'content-relay' ), $log->count( Log_Table::OUT ) ),
+			Log_Table::IN  => array( __( 'Received', 'content-relay' ), $log->count( Log_Table::IN ) ),
+		);
+		echo '<ul class="subsubsub">';
+		$links = array();
+		foreach ( $filters as $key => $filter ) {
+			$links[] = sprintf(
+				'<li><a href="%1$s"%2$s>%3$s <span class="count">(%4$d)</span></a></li>',
+				esc_url( '' === $key ? self::url() : self::url( array( 'direction' => $key ) ) ),
+				( (string) $direction === (string) $key ) ? ' class="current" aria-current="page"' : '',
+				esc_html( $filter[0] ),
+				(int) $filter[1]
+			);
+		}
+		echo implode( ' | ', $links ); // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped -- Each link is escaped above.
+		echo '</ul><br class="clear" />';
+
+		if ( array() === $rows ) {
+			echo '<p>' . esc_html__( 'No relays yet.', 'content-relay' ) . '</p></div>';
+			return;
+		}
+
+		echo '<table class="widefat striped content-relay-table content-relay-history"><thead><tr>';
+		foreach ( array( __( 'When', 'content-relay' ), __( 'Direction', 'content-relay' ), __( 'Content', 'content-relay' ), __( 'By', 'content-relay' ), __( 'Status', 'content-relay' ), '' ) as $heading ) {
+			echo '<th scope="col">' . esc_html( $heading ) . '</th>';
+		}
+		echo '</tr></thead><tbody>';
+		$unconfirmed = $this->confirm_statuses( $rows );
+		foreach ( $rows as $row ) {
+			$this->render_row( $log, $row, $unconfirmed[ (int) $row['id'] ] ?? '' );
+		}
+		echo '</tbody></table>';
+
+		$pages = (int) ceil( $total / self::PER_PAGE );
+		if ( $pages > 1 ) {
+			echo '<div class="tablenav"><div class="tablenav-pages">';
+			echo wp_kses_post(
+				(string) paginate_links(
+					array(
+						'base'    => add_query_arg( 'paged', '%#%' ),
+						'format'  => '',
+						'current' => $paged,
+						'total'   => $pages,
+					)
+				)
+			);
+			echo '</div></div>';
+		}
+
+		echo '</div>';
+	}
 }
