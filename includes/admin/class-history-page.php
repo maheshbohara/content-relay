@@ -310,4 +310,50 @@ final class History_Page {
 		}
 		echo '</td></tr>';
 	}
+
+	/**
+	 * Written objects and rollback summary of an applied session.
+	 *
+	 * @param array<string, mixed> $row Full row.
+	 */
+	private function render_details( array $row ): void {
+		$result       = (array) ( $row['result'] ?? array() );
+		$written      = (array) ( $result['written'] ?? array() );
+		$warnings     = (array) ( $result['warnings'] ?? array() );
+		$verification = is_array( $result['verification'] ?? null ) ? $result['verification'] : null;
+		if ( array() === $written && empty( $result['rollback'] ) && array() === $warnings && null === $verification ) {
+			return;
+		}
+
+		if ( null !== $verification ) {
+			echo '<br />';
+			if ( ! empty( $verification['ok'] ) ) {
+				/* translators: %s: date and time of the check. */
+				echo '<span class="content-relay-badge is-on">' . esc_html( sprintf( __( 'Pages checked %s: all passed', 'content-relay' ), Admin::time( $verification['checked_at'] ?? '' ) ) ) . '</span>';
+			} else {
+				/* translators: 1: date and time of the check, 2: number of failed checks. */
+				echo '<span class="content-relay-badge is-off">' . esc_html( sprintf( __( 'Pages checked %1$s: %2$d failed', 'content-relay' ), Admin::time( $verification['checked_at'] ?? '' ), count( (array) ( $verification['problems'] ?? array() ) ) ) ) . '</span>';
+			}
+		}
+
+		echo '<details class="content-relay-details"><summary>' . esc_html__( 'Details', 'content-relay' ) . '</summary><ul>';
+		foreach ( (array) ( $verification['problems'] ?? array() ) as $problem ) {
+			/* translators: %s: failed check. */
+			echo '<li class="content-relay-error">' . esc_html( sprintf( __( 'Check failed: %s', 'content-relay' ), (string) $problem ) ) . '</li>';
+		}
+		foreach ( $warnings as $warning ) {
+			/* translators: %s: warning from the receiving site. */
+			echo '<li>' . esc_html( sprintf( __( 'Warning: %s', 'content-relay' ), (string) $warning ) ) . '</li>';
+		}
+		foreach ( $written as $object ) {
+			/* translators: 1: plan action, 2: object key on the sender, 3: object id on the receiver. */
+			echo '<li>' . esc_html( sprintf( __( '%1$s %2$s → id %3$s', 'content-relay' ), (string) ( $object['action'] ?? '' ), (string) ( $object['key'] ?? '' ), (string) ( $object['id'] ?? '' ) ) ) . '</li>';
+		}
+		if ( ! empty( $result['rollback'] ) ) {
+			$rollback = (array) $result['rollback'];
+			/* translators: 1: restored objects, 2: removed objects, 3: removed files. */
+			echo '<li>' . esc_html( sprintf( __( 'Rollback: %1$d restored, %2$d removed, %3$d files removed', 'content-relay' ), count( (array) ( $rollback['restored'] ?? array() ) ), count( (array) ( $rollback['deleted'] ?? array() ) ), (int) ( $rollback['files'] ?? 0 ) ) ) . '</li>';
+		}
+		echo '</ul></details>';
+	}
 }
