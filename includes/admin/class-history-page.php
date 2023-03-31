@@ -407,4 +407,47 @@ final class History_Page {
 
 		$this->rolled_back_notice( (array) ( $data['rollback'] ?? array() ) );
 	}
+
+	/**
+	 * Rolls back a received relay on this site.
+	 *
+	 * @param Log_Table            $log       Log.
+	 * @param array<string, mixed> $row       Row.
+	 * @param bool                 $overwrite Discard later edits.
+	 */
+	private function rollback_received( Log_Table $log, array $row, bool $overwrite ): void {
+		try {
+			$summary = ( new Rollback( new Receive_Context( Adapter_Factory::create() ) ) )->rollback( (string) $row['apply_session'], $overwrite );
+		} catch ( Apply_Exception $e ) {
+			$this->notice( 'error', html_entity_decode( $e->getMessage(), ENT_QUOTES | ENT_HTML5, 'UTF-8' ) );
+			return;
+		}
+
+		$staging = Staging::for_site();
+		if ( null !== $staging->read( (string) $row['session'] ) ) {
+			try {
+				$staging->update(
+					(string) $row['session'],
+					array(
+						'status'         => Staging::STATUS_ROLLED_BACK,
+						'rolled_back_at' => gmdate( 'c' ),
+						'rollback'       => $summary,
+					)
+				);
+			} catch ( Staging_Exception $e ) {
+				$this->notice( 'warning', __( 'The rollback succeeded, but its staging record could not be updated.', 'content-relay' ) );
+			}
+		}
+
+		$log->update(
+			(string) $row['session'],
+			Log_Table::IN,
+			array(
+				'status' => Log_Table::STATUS_ROLLED_BACK,
+				'result' => array_merge( (array) ( $row['result'] ?? array() ), array( 'rollback' => $summary ) ),
+			)
+		);
+
+		$this->rolled_back_notice( $summary );
+	}
 }
