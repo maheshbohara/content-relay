@@ -223,4 +223,91 @@ final class History_Page {
 
 		return $unconfirmed;
 	}
+
+	/**
+	 * One history row.
+	 *
+	 * @param Log_Table            $log         Log.
+	 * @param array<string, mixed> $row         Row (without plan and result).
+	 * @param string               $unconfirmed `unknown` or `unreachable` when the receiver did not confirm an applied relay.
+	 */
+	private function render_row( Log_Table $log, array $row, string $unconfirmed = '' ): void {
+		$sent   = Log_Table::OUT === $row['direction'];
+		$status = (string) $row['status'];
+		$full   = in_array( $status, array( Log_Table::STATUS_APPLIED, Log_Table::STATUS_ROLLED_BACK ), true ) ? $log->find( (int) $row['id'] ) : null;
+
+		echo '<tr>';
+		echo '<td>' . esc_html( Admin::time( $row['created_at'] ) ) . '</td>';
+
+		/* translators: %s: host name of the other site. */
+		$direction = $sent ? __( 'Sent to %s', 'content-relay' ) : __( 'Received from %s', 'content-relay' );
+		echo '<td>' . esc_html( sprintf( $direction, Admin::host( (string) $row['peer_url'] ) ) ) . '</td>';
+
+		echo '<td>';
+		$post_id = (int) $row['root_post_id'];
+		$title   = '' !== (string) $row['root_title'] ? (string) $row['root_title'] : __( '(untitled)', 'content-relay' );
+		$edit    = $post_id > 0 ? get_edit_post_link( $post_id, 'raw' ) : null;
+		if ( is_string( $edit ) && '' !== $edit ) {
+			printf( '<a href="%1$s"><strong>%2$s</strong></a>', esc_url( $edit ), esc_html( $title ) );
+		} else {
+			echo '<strong>' . esc_html( $title ) . '</strong>';
+		}
+		if ( '' !== (string) $row['languages'] ) {
+			echo ' <span class="content-relay-muted">' . esc_html( strtoupper( str_replace( ',', ', ', (string) $row['languages'] ) ) ) . '</span>';
+		}
+		echo '<br /><code class="content-relay-muted" title="' . esc_attr( (string) $row['session'] ) . '">' . esc_html( substr( (string) $row['session'], 0, 8 ) ) . '</code>';
+		echo '</td>';
+
+		echo '<td>' . esc_html( (string) $row['user_login'] ) . '</td>';
+
+		echo '<td>' . esc_html( self::status_label( $row ) );
+		if ( null !== $full && ! empty( $full['result']['rolled_back_on_receiver'] ) ) {
+			echo '<br /><span class="content-relay-muted">' . esc_html__( 'Rolled back on the receiving site.', 'content-relay' ) . '</span>';
+		}
+		if ( 'unknown' === $unconfirmed ) {
+			echo '<br /><span class="content-relay-muted">' . esc_html__( 'Not confirmed by the receiving site: it has no record of this relay for the current connection key.', 'content-relay' ) . '</span>';
+		} elseif ( 'unreachable' === $unconfirmed ) {
+			echo '<br /><span class="content-relay-muted">' . esc_html__( 'The receiving site could not be reached to confirm this status.', 'content-relay' ) . '</span>';
+		}
+		if ( '' !== (string) ( $row['error'] ?? '' ) ) {
+			echo '<br /><span class="content-relay-error">' . esc_html( (string) $row['error'] ) . '</span>';
+		}
+		if ( null !== $full ) {
+			$this->render_details( $full );
+		}
+		echo '</td>';
+
+		echo '<td class="content-relay-actions">';
+		if ( Log_Table::STATUS_APPLIED === $status ) {
+			echo '<form method="post" class="content-relay-form">';
+			wp_nonce_field( 'content_relay_history_rollback' );
+			printf( '<input type="hidden" name="log_id" value="%d" />', (int) $row['id'] );
+			printf(
+				'<label class="content-relay-overwrite"><input type="checkbox" name="overwrite" value="1" /> %s</label> ',
+				esc_html__( 'Also discard edits made after the relay', 'content-relay' )
+			);
+			printf(
+				'<button type="submit" class="button" onclick="return confirm(%1$s)">%2$s</button>',
+				esc_attr(
+					(string) wp_json_encode(
+						$sent
+							? __( 'Roll back this relay on the receiving site? What it replaced is restored and what it created is removed.', 'content-relay' )
+							: __( 'Roll back this relay on this site? What it replaced is restored and what it created is removed.', 'content-relay' )
+					)
+				),
+				esc_html__( 'Roll back', 'content-relay' )
+			);
+			echo '</form>';
+
+			if ( $sent ) {
+				echo '<form method="post" class="content-relay-form">';
+				wp_nonce_field( 'content_relay_history_verify' );
+				echo '<input type="hidden" name="content_relay_history_action" value="verify" />';
+				printf( '<input type="hidden" name="log_id" value="%d" />', (int) $row['id'] );
+				printf( '<button type="submit" class="button">%s</button>', esc_html__( 'Check pages', 'content-relay' ) );
+				echo '</form>';
+			}
+		}
+		echo '</td></tr>';
+	}
 }
