@@ -183,4 +183,44 @@ final class History_Page {
 
 		echo '</div>';
 	}
+
+	/**
+	 * Confirms sent relays still marked applied with their receivers, which may have rolled them back since. Rows found
+	 * rolled back are updated in the log and in `$rows`; a receiver that cannot be reached is asked once per request.
+	 *
+	 * @param array<int, array<string, mixed>> $rows Rows on this page; statuses updated in place.
+	 * @return array<int, string> Row id => `unknown` or `unreachable` where the receiver did not confirm the status.
+	 */
+	private function confirm_statuses( array &$rows ): array {
+		if ( ! Config::can_send() ) {
+			return array();
+		}
+		try {
+			$sender = Sender::for_site();
+		} catch ( Send_Exception $e ) {
+			return array();
+		}
+
+		$unconfirmed = array();
+		$unreachable = array();
+		foreach ( $rows as $index => $row ) {
+			if ( Log_Table::OUT !== $row['direction'] || Log_Table::STATUS_APPLIED !== $row['status'] ) {
+				continue;
+			}
+
+			$connection = (string) $row['connection'];
+			$state      = isset( $unreachable[ $connection ] ) ? 'unreachable' : $sender->refresh_status( (string) $row['session'] );
+			if ( 'unreachable' === $state ) {
+				$unreachable[ $connection ] = true;
+			}
+
+			if ( Log_Table::STATUS_ROLLED_BACK === $state ) {
+				$rows[ $index ]['status'] = $state;
+			} elseif ( Log_Table::STATUS_APPLIED !== $state ) {
+				$unconfirmed[ (int) $row['id'] ] = $state;
+			}
+		}
+
+		return $unconfirmed;
+	}
 }
