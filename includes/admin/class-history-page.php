@@ -356,4 +356,55 @@ final class History_Page {
 		}
 		echo '</ul></details>';
 	}
+
+	/**
+	 * Checks a sent relay's pages on its receiver again.
+	 *
+	 * @param array<string, mixed> $row Row.
+	 */
+	private function verify_sent( array $row ): void {
+		if ( Log_Table::OUT !== $row['direction'] ) {
+			$this->notice( 'error', __( 'Only a relay sent from this site can be checked from here.', 'content-relay' ) );
+			return;
+		}
+
+		try {
+			$report = Sender::for_site()->verify( (string) $row['session'] );
+		} catch ( Send_Exception $e ) {
+			$this->notice( 'error', $e->plain_message() );
+			return;
+		}
+
+		if ( $report['ok'] ) {
+			$this->notice( 'success', __( 'Every check on the receiving site passed.', 'content-relay' ) );
+			return;
+		}
+
+		$this->notice(
+			'error',
+			sprintf(
+				/* translators: 1: number of failed checks, 2: the failures. */
+				_n( '%1$d check failed on the receiving site: %2$s', '%1$d checks failed on the receiving site: %2$s', count( $report['problems'] ), 'content-relay' ),
+				count( $report['problems'] ),
+				implode( ' ', $report['problems'] )
+			)
+		);
+	}
+
+	/**
+	 * Rolls back a sent relay on its receiver.
+	 *
+	 * @param array<string, mixed> $row       Row.
+	 * @param bool                 $overwrite Discard later edits.
+	 */
+	private function rollback_sent( array $row, bool $overwrite ): void {
+		try {
+			$data = Sender::for_site()->rollback( (string) $row['session'], $overwrite );
+		} catch ( Send_Exception $e ) {
+			$this->notice( 'error', $e->plain_message() );
+			return;
+		}
+
+		$this->rolled_back_notice( (array) ( $data['rollback'] ?? array() ) );
+	}
 }
