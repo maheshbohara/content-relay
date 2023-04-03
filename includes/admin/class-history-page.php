@@ -450,4 +450,55 @@ final class History_Page {
 
 		$this->rolled_back_notice( $summary );
 	}
+
+	/**
+	 * Success notice for a rollback.
+	 *
+	 * @param array<string, mixed> $summary Rollback summary.
+	 */
+	private function rolled_back_notice( array $summary ): void {
+		$this->notice(
+			'success',
+			sprintf(
+				/* translators: 1: restored objects, 2: removed objects, 3: removed terms, 4: removed files. */
+				__( 'Rolled back: %1$d restored, %2$d removed, %3$d terms removed, %4$d files removed.', 'content-relay' ),
+				count( (array) ( $summary['restored'] ?? array() ) ),
+				count( (array) ( $summary['deleted'] ?? array() ) ),
+				count( (array) ( $summary['terms'] ?? array() ) ),
+				(int) ( $summary['files'] ?? 0 )
+			)
+		);
+	}
+
+	/**
+	 * Human status of a row.
+	 *
+	 * @param array<string, mixed> $row Row.
+	 */
+	private static function status_label( array $row ): string {
+		switch ( $row['status'] ) {
+			case Log_Table::STATUS_APPLIED:
+				return __( 'Applied', 'content-relay' );
+			case Log_Table::STATUS_ROLLED_BACK:
+				return __( 'Rolled back', 'content-relay' );
+			case Log_Table::STATUS_ABORTED:
+				return __( 'Cancelled', 'content-relay' );
+			default:
+				$age = time() - (int) strtotime( (string) $row['updated_at'] . ' UTC' );
+				return $age > Staging::TTL_SECONDS ? __( 'Expired (not applied)', 'content-relay' ) : __( 'Planned (not applied)', 'content-relay' );
+		}
+	}
+
+	/**
+	 * Queues a notice.
+	 *
+	 * @param string $type    `success`, `warning` or `error`.
+	 * @param string $message Plain-text message.
+	 */
+	private function notice( string $type, string $message ): void {
+		$this->notices[] = array(
+			'type'    => $type,
+			'message' => $message,
+		);
+	}
 }
