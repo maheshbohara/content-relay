@@ -190,4 +190,53 @@ final class Rest_Controller {
 			}
 		);
 	}
+
+	/**
+	 * `POST /admin/relays/{session}/apply {plan_hash, overwrite, flush_cache}` — applies the approved plan.
+	 *
+	 * @param \WP_REST_Request $request Request.
+	 */
+	public function apply( \WP_REST_Request $request ): \WP_REST_Response {
+		$session   = (string) $request['session'];
+		$hash      = (string) $request->get_param( 'plan_hash' );
+		$overwrite = self::flag( $request->get_param( 'overwrite' ) );
+		$flush     = self::flag( $request->get_param( 'flush_cache' ) );
+
+		return self::run(
+			static function ( Sender $sender ) use ( $session, $hash, $overwrite, $flush ): array {
+				return $sender->apply( $session, $hash, $overwrite, $flush );
+			}
+		);
+	}
+
+	/**
+	 * `POST /admin/relays/{session}/verify` — checks the relayed pages over HTTP on the receiver.
+	 *
+	 * @param \WP_REST_Request $request Request.
+	 */
+	public function verify( \WP_REST_Request $request ): \WP_REST_Response {
+		$session = (string) $request['session'];
+
+		return self::run(
+			static function ( Sender $sender ) use ( $session ): array {
+				return $sender->verify( $session );
+			}
+		);
+	}
+
+	/**
+	 * `DELETE /admin/relays/{session}` — cancels an unapplied relay.
+	 *
+	 * @param \WP_REST_Request $request Request.
+	 */
+	public function abort( \WP_REST_Request $request ): \WP_REST_Response {
+		$session = (string) $request['session'];
+
+		return self::run(
+			static function ( Sender $sender ) use ( $session ): array {
+				$sender->abort( $session );
+				return array( 'session' => $session );
+			}
+		);
+	}
 }
