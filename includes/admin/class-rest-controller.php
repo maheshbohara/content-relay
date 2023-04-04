@@ -138,4 +138,56 @@ final class Rest_Controller {
 			)
 		);
 	}
+
+	/**
+	 * `POST /admin/relays {post, connection, overwrite}` — opens a session on the receiver.
+	 *
+	 * @param \WP_REST_Request $request Request.
+	 */
+	public function start( \WP_REST_Request $request ): \WP_REST_Response {
+		$post_id = absint( $request->get_param( 'post' ) );
+		if ( ! current_user_can( 'edit_post', $post_id ) ) {
+			return self::error( 'forbidden', __( 'You cannot edit that content.', 'content-relay' ), 403 );
+		}
+
+		$label     = sanitize_key( (string) $request->get_param( 'connection' ) );
+		$overwrite = self::flag( $request->get_param( 'overwrite' ) );
+
+		return self::run(
+			static function ( Sender $sender ) use ( $post_id, $label, $overwrite ): array {
+				return $sender->start( $post_id, $label, $overwrite );
+			}
+		);
+	}
+
+	/**
+	 * `POST /admin/relays/{session}/upload` — one time-boxed upload step.
+	 *
+	 * @param \WP_REST_Request $request Request.
+	 */
+	public function upload( \WP_REST_Request $request ): \WP_REST_Response {
+		$session = (string) $request['session'];
+
+		return self::run(
+			static function ( Sender $sender ) use ( $session ): array {
+				return $sender->upload( $session, self::UPLOAD_BUDGET_SECONDS );
+			}
+		);
+	}
+
+	/**
+	 * `GET /admin/relays/{session}/plan[?overwrite=1]` — the receiver's plan with diffs.
+	 *
+	 * @param \WP_REST_Request $request Request.
+	 */
+	public function plan( \WP_REST_Request $request ): \WP_REST_Response {
+		$session   = (string) $request['session'];
+		$overwrite = null === $request->get_param( 'overwrite' ) ? null : self::flag( $request->get_param( 'overwrite' ) );
+
+		return self::run(
+			static function ( Sender $sender ) use ( $session, $overwrite ): array {
+				return $sender->plan( $session, $overwrite );
+			}
+		);
+	}
 }
