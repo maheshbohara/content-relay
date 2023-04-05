@@ -283,4 +283,57 @@ final class Rest_Controller {
 			return self::error( $e->error_code(), $e->plain_message(), $e->status() );
 		}
 	}
+
+	/**
+	 * One-line description of a manifest object.
+	 *
+	 * @param array<string, mixed> $record Object.
+	 */
+	private static function describe( array $record ): string {
+		switch ( $record['kind'] ) {
+			case 'attachment':
+				return isset( $record['file']['relative'] ) ? (string) $record['file']['relative'] : (string) ( $record['title'] ?? '' );
+			case 'term':
+				return $record['taxonomy'] . '/' . $record['slug'];
+			case 'user':
+				return (string) $record['login'];
+			default:
+				return $record['post_type'] . ' /' . $record['path'] . '/';
+		}
+	}
+
+	/**
+	 * Success response.
+	 *
+	 * @param array<string, mixed> $data Data.
+	 */
+	private static function ok( array $data ): \WP_REST_Response {
+		return new \WP_REST_Response(
+			array(
+				'ok'      => true,
+				'code'    => 'ok',
+				'message' => '',
+				'data'    => $data,
+			)
+		);
+	}
+
+	/**
+	 * Error response. apiFetch rejects with this body, so `message` reaches the screen.
+	 *
+	 * @param string $code    Code.
+	 * @param string $message Message (plain text).
+	 * @param int    $status  HTTP status.
+	 */
+	private static function error( string $code, string $message, int $status ): \WP_REST_Response {
+		return new \WP_REST_Response(
+			array(
+				'ok'      => false,
+				'code'    => $code,
+				'message' => $message,
+				'data'    => array( 'status' => $status ),
+			),
+			$status
+		);
+	}
 }
