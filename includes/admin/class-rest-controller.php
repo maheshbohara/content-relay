@@ -239,4 +239,48 @@ final class Rest_Controller {
 			}
 		);
 	}
+
+	/**
+	 * `POST /admin/relays/{session}/rollback {overwrite}` — rolls back an applied relay on the receiver.
+	 *
+	 * @param \WP_REST_Request $request Request.
+	 */
+	public function rollback( \WP_REST_Request $request ): \WP_REST_Response {
+		$session   = (string) $request['session'];
+		$overwrite = self::flag( $request->get_param( 'overwrite' ) );
+
+		return self::run(
+			static function ( Sender $sender ) use ( $session, $overwrite ): array {
+				return $sender->rollback( $session, $overwrite );
+			}
+		);
+	}
+
+	/**
+	 * A boolean request value (JSON true/false, or `1`/`0`/`true`/`false` in a query string).
+	 *
+	 * @param mixed $value Raw value.
+	 */
+	private static function flag( $value ): bool {
+		if ( is_bool( $value ) ) {
+			return $value;
+		}
+
+		return is_scalar( $value ) && in_array( strtolower( (string) $value ), array( '1', 'true', 'yes', 'on' ), true );
+	}
+
+	/**
+	 * Runs a Sender step and turns its outcome into a response.
+	 *
+	 * @param callable $step Step.
+	 *
+	 * @phpstan-param callable(Sender): array<string, mixed> $step
+	 */
+	private static function run( callable $step ): \WP_REST_Response {
+		try {
+			return self::ok( $step( Sender::for_site() ) );
+		} catch ( Send_Exception $e ) {
+			return self::error( $e->error_code(), $e->plain_message(), $e->status() );
+		}
+	}
 }
