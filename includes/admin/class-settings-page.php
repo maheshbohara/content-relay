@@ -161,4 +161,49 @@ final class Settings_Page {
 		);
 		$this->notice( 'success', $messages[ $name ] );
 	}
+
+	/**
+	 * Saves which post types can be relayed from this site.
+	 */
+	private function save_post_types(): void {
+		// phpcs:ignore WordPress.Security.NonceVerification.Missing,WordPress.Security.ValidatedSanitizedInput.InputNotSanitized -- Only called from load(), after check_admin_referer(); each value is sanitized below.
+		$raw    = isset( $_POST['post_types'] ) && is_array( $_POST['post_types'] ) ? wp_unslash( $_POST['post_types'] ) : array();
+		$posted = array_map( 'sanitize_key', array_filter( $raw, 'is_string' ) );
+		$saved  = Config::set_post_types( $posted );
+
+		/* translators: %s: comma-separated list of post type names. */
+		$this->notice( 'success', sprintf( __( 'Relayable post types: %s.', 'content-relay' ), implode( ', ', $saved ) ) );
+	}
+
+	/**
+	 * Issues a receiver key.
+	 */
+	private function generate_key(): void {
+		if ( ! Config::can_receive() ) {
+			$this->notice( 'error', __( 'Receiving is off on this site, so it cannot issue keys.', 'content-relay' ) );
+			return;
+		}
+
+		$label = self::posted( 'label' );
+		if ( '' === $label ) {
+			$this->notice( 'error', __( 'Give the key a label, for example the address of the site that will use it.', 'content-relay' ) );
+			return;
+		}
+
+		$this->issued = ( new Receiver_Keys() )->generate( $label, get_current_user_id() );
+	}
+
+	/**
+	 * Revokes a receiver key.
+	 */
+	private function revoke_key(): void {
+		$kid = self::posted( 'kid' );
+		if ( ( new Receiver_Keys() )->revoke( $kid ) ) {
+			/* translators: %s: key id. */
+			$this->notice( 'success', sprintf( __( 'Key %s revoked. Requests signed with it are refused from now on.', 'content-relay' ), $kid ) );
+		} else {
+			/* translators: %s: key id. */
+			$this->notice( 'error', sprintf( __( 'There is no active key %s.', 'content-relay' ), $kid ) );
+		}
+	}
 }
