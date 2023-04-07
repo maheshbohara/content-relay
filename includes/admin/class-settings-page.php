@@ -113,4 +113,52 @@ final class Settings_Page {
 				break;
 		}
 	}
+
+	/**
+	 * Renders the page.
+	 */
+	public function render(): void {
+		if ( ! current_user_can( 'manage_options' ) ) {
+			return;
+		}
+
+		echo '<div class="wrap content-relay">';
+		echo '<h1>' . esc_html__( 'Content Relay', 'content-relay' ) . '</h1>';
+
+		foreach ( $this->notices as $notice ) {
+			printf( '<div class="notice notice-%1$s"><p>%2$s</p></div>', esc_attr( $notice['type'] ), esc_html( $notice['message'] ) );
+		}
+		if ( null !== $this->issued ) {
+			$this->render_issued_key( $this->issued );
+		}
+
+		$this->render_status();
+		$this->render_keys();
+		$this->render_connections();
+
+		echo '</div>';
+	}
+
+	/**
+	 * Turns sending or receiving on or off.
+	 */
+	private function toggle_switch(): void {
+		$name = self::posted( 'switch' );
+		$on   = '1' === self::posted( 'on' );
+
+		if ( ! isset( Config::SWITCHES[ $name ] ) ) {
+			return;
+		}
+		if ( ! Config::set( $name, $on ) ) {
+			/* translators: %s: wp-config.php constant name. */
+			$this->notice( 'error', sprintf( __( 'This switch is set by %s in wp-config.php and cannot be changed here.', 'content-relay' ), Config::SWITCHES[ $name ] ) );
+			return;
+		}
+
+		$messages = array(
+			'send'    => $on ? __( 'Sending is on. This site can relay content to its connections.', 'content-relay' ) : __( 'Sending is off.', 'content-relay' ),
+			'receive' => $on ? __( 'Receiving is on. Sites holding an active key issued here can relay content to this site.', 'content-relay' ) : __( 'Receiving is off. Relay requests to this site are refused.', 'content-relay' ),
+		);
+		$this->notice( 'success', $messages[ $name ] );
+	}
 }
