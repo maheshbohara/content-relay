@@ -391,4 +391,64 @@ final class Settings_Page {
 
 		echo '</tbody></table>';
 	}
+
+	/**
+	 * Receiver keys section.
+	 */
+	private function render_keys(): void {
+		echo '<h2>' . esc_html__( 'Receiver keys', 'content-relay' ) . '</h2>';
+
+		if ( ! Config::can_receive() ) {
+			echo '<p>' . esc_html__( 'Receiving is off, so this site issues no keys. Keys issued earlier stay listed but are not accepted.', 'content-relay' ) . '</p>';
+		} else {
+			echo '<p class="description">' . esc_html__( 'A key lets one sending site relay content here. This site keeps only the public half; the key is shown once when it is issued.', 'content-relay' ) . '</p>';
+		}
+
+		$keys = ( new Receiver_Keys() )->all();
+		if ( array() !== $keys ) {
+			echo '<table class="widefat striped content-relay-table"><thead><tr>';
+			foreach ( array( __( 'Key id', 'content-relay' ), __( 'Label', 'content-relay' ), __( 'Issued by', 'content-relay' ), __( 'Issued', 'content-relay' ), __( 'Last used', 'content-relay' ), __( 'Status', 'content-relay' ), '' ) as $heading ) {
+				echo '<th scope="col">' . esc_html( $heading ) . '</th>';
+			}
+			echo '</tr></thead><tbody>';
+
+			foreach ( $keys as $kid => $record ) {
+				$user    = get_userdata( (int) ( $record['created_by'] ?? 0 ) );
+				$revoked = ! empty( $record['revoked_at'] );
+				echo '<tr>';
+				echo '<td><code>' . esc_html( (string) $kid ) . '</code></td>';
+				echo '<td>' . esc_html( (string) ( $record['label'] ?? '' ) ) . '</td>';
+				echo '<td>' . esc_html( $user instanceof \WP_User ? $user->user_login : __( '(deleted user)', 'content-relay' ) ) . '</td>';
+				echo '<td>' . esc_html( Admin::time( $record['created_at'] ?? '' ) ) . '</td>';
+				echo '<td>' . esc_html( Admin::time( $record['last_used'] ?? '' ) ) . '</td>';
+				/* translators: %s: date and time the key was revoked. */
+				echo '<td>' . esc_html( $revoked ? sprintf( __( 'Revoked %s', 'content-relay' ), Admin::time( $record['revoked_at'] ) ) : __( 'Active', 'content-relay' ) ) . '</td>';
+				echo '<td>';
+				if ( ! $revoked ) {
+					self::form_open( 'revoke_key' );
+					printf( '<input type="hidden" name="kid" value="%s" />', esc_attr( (string) $kid ) );
+					printf(
+						'<button type="submit" class="button button-link-delete" onclick="return confirm(%1$s)">%2$s</button>',
+						esc_attr( (string) wp_json_encode( __( 'Revoke this key? The sending site that uses it can no longer relay here.', 'content-relay' ) ) ),
+						esc_html__( 'Revoke', 'content-relay' )
+					);
+					echo '</form>';
+				}
+				echo '</td></tr>';
+			}
+			echo '</tbody></table>';
+		}
+
+		if ( Config::can_receive() ) {
+			echo '<h3>' . esc_html__( 'Issue a key', 'content-relay' ) . '</h3>';
+			self::form_open( 'generate_key' );
+			printf(
+				'<p><label for="content-relay-key-label">%1$s</label><br /><input type="text" id="content-relay-key-label" name="label" class="regular-text" required placeholder="%2$s" /></p>',
+				esc_html__( 'Label', 'content-relay' ),
+				esc_attr__( 'dev.example.com', 'content-relay' )
+			);
+			submit_button( __( 'Issue key', 'content-relay' ), 'secondary', 'submit', false );
+			echo '</form>';
+		}
+	}
 }
