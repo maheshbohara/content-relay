@@ -293,4 +293,102 @@ final class Settings_Page {
 			$this->notice( 'warning', __( 'The clocks of the two sites differ by more than a minute. Requests are refused beyond five minutes.', 'content-relay' ) );
 		}
 	}
+
+	/**
+	 * Removes a connection (works even when its key can no longer be decrypted here).
+	 */
+	private function remove_connection(): void {
+		$label       = self::posted( 'label' );
+		$connections = get_option( Connections::OPTION, array() );
+		if ( ! is_array( $connections ) || ! isset( $connections[ $label ] ) ) {
+			/* translators: %s: connection label. */
+			$this->notice( 'error', sprintf( __( 'There is no connection named %s.', 'content-relay' ), $label ) );
+			return;
+		}
+
+		unset( $connections[ $label ] );
+		update_option( Connections::OPTION, $connections, false );
+		/* translators: %s: connection label. */
+		$this->notice( 'success', sprintf( __( 'Connection %s removed. Revoke its key on the receiving site too.', 'content-relay' ), $label ) );
+	}
+
+	/**
+	 * Shows a just-issued key once.
+	 *
+	 * @param array{kid: string, key: string} $issued Issued key.
+	 */
+	private function render_issued_key( array $issued ): void {
+		echo '<div class="notice notice-warning content-relay-issued">';
+		/* translators: %s: key id. */
+		echo '<p><strong>' . esc_html( sprintf( __( 'Key %s issued. Copy it now: it is not stored on this site and cannot be shown again.', 'content-relay' ), $issued['kid'] ) ) . '</strong></p>';
+		echo '<p><textarea class="large-text code" rows="3" readonly onclick="this.select()">' . esc_textarea( $issued['key'] ) . '</textarea></p>';
+		echo '<p>' . esc_html__( 'On the sending site, open Settings → Content Relay and paste it under Add connection. Relays made with this key run as you.', 'content-relay' ) . '</p>';
+		echo '</div>';
+	}
+
+	/**
+	 * This site's status.
+	 */
+	private function render_status(): void {
+		$language  = Adapter_Factory::create();
+		$allowlist = Config::ip_allowlist();
+
+		echo '<h2>' . esc_html__( 'This site', 'content-relay' ) . '</h2>';
+		echo '<table class="form-table" role="presentation"><tbody>';
+
+		self::switch_row(
+			'send',
+			__( 'Sending', 'content-relay' ),
+			__( 'Lets this site relay content to its connections.', 'content-relay' )
+		);
+		self::switch_row(
+			'receive',
+			__( 'Receiving', 'content-relay' ),
+			__( 'Lets sites holding an active key issued here relay content to this site. When off, the relay routes do not exist.', 'content-relay' )
+		);
+
+		$this->post_types_row();
+
+		printf(
+			'<tr><th scope="row">%1$s</th><td>%2$s</td></tr>',
+			esc_html__( 'Plugin', 'content-relay' ),
+			/* translators: 1: plugin version, 2: manifest schema number. */
+			esc_html( sprintf( __( 'Version %1$s, manifest schema %2$d', 'content-relay' ), CONTENT_RELAY_VERSION, (int) CONTENT_RELAY_SCHEMA ) )
+		);
+		printf(
+			'<tr><th scope="row">%1$s</th><td>%2$s</td></tr>',
+			esc_html__( 'Languages', 'content-relay' ),
+			esc_html(
+				'none' === $language->id()
+					? __( 'No multilingual plugin', 'content-relay' )
+					/* translators: 1: multilingual plugin, 2: default language code, 3: active language codes. */
+					: sprintf( __( '%1$s, default %2$s, active %3$s', 'content-relay' ), strtoupper( $language->id() ), (string) $language->default_language(), implode( ', ', $language->active_languages() ) )
+			)
+		);
+		printf(
+			'<tr><th scope="row">%1$s</th><td>%2$s</td></tr>',
+			esc_html__( 'Connection keys', 'content-relay' ),
+			esc_html(
+				null === Vault::from_config()
+					? __( 'No key material: define CONTENT_RELAY_ENCRYPTION_KEY, or real AUTH_KEY and SECURE_AUTH_KEY salts, in wp-config.php before adding connections.', 'content-relay' )
+					: __( 'Stored encrypted with key material from wp-config.php.', 'content-relay' )
+			)
+		);
+		if ( Config::can_receive() ) {
+			printf(
+				'<tr><th scope="row">%1$s</th><td>%2$s</td></tr>',
+				esc_html__( 'Sender IP allowlist', 'content-relay' ),
+				esc_html( null === $allowlist ? __( 'None (any IP with a valid key)', 'content-relay' ) : implode( ', ', $allowlist ) )
+			);
+		}
+		printf(
+			'<tr><th scope="row">%1$s</th><td><a href="%2$s">%3$s</a></td></tr>',
+			esc_html__( 'History', 'content-relay' ),
+			esc_url( History_Page::url() ),
+			/* translators: %d: number of logged relay sessions. */
+			esc_html( sprintf( _n( '%d relay session logged', '%d relay sessions logged', ( new Log_Table() )->count( null ), 'content-relay' ), ( new Log_Table() )->count( null ) ) )
+		);
+
+		echo '</tbody></table>';
+	}
 }
