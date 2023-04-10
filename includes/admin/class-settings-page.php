@@ -254,4 +254,43 @@ final class Settings_Page {
 			)
 		);
 	}
+
+	/**
+	 * Runs a handshake with a connection.
+	 */
+	private function test_connection(): void {
+		$label = self::posted( 'label' );
+
+		try {
+			$environment = Sender::for_site()->handshake( $label );
+		} catch ( Send_Exception $e ) {
+			$this->notice( 'error', $e->plain_message() );
+			return;
+		}
+
+		$skew  = (int) ( $environment['server_time'] ?? 0 ) - time();
+		$theme = wp_get_theme();
+		$this->notice(
+			'success',
+			sprintf(
+				/* translators: 1: connection label, 2: receiver address, 3: WordPress version, 4: PHP version, 5: theme name, 6: theme version, 7: language setup, 8: clock difference in seconds. */
+				__( 'Handshake with %1$s succeeded: %2$s, WordPress %3$s, PHP %4$s, theme %5$s %6$s, languages %7$s, clock difference %8$+d s.', 'content-relay' ),
+				$label,
+				(string) ( $environment['home_url'] ?? '' ),
+				(string) ( $environment['wp'] ?? '?' ),
+				(string) ( $environment['php'] ?? '?' ),
+				(string) ( $environment['theme']['stylesheet'] ?? '?' ),
+				(string) ( $environment['theme']['version'] ?? '?' ),
+				implode( ', ', (array) ( $environment['language']['active'] ?? array() ) ),
+				$skew
+			)
+		);
+
+		if ( ( $environment['theme']['stylesheet'] ?? '' ) !== get_stylesheet() || (string) ( $environment['theme']['version'] ?? '' ) !== (string) $theme->get( 'Version' ) ) {
+			$this->notice( 'warning', __( 'The receiver runs a different theme or theme version. Relays are blocked until the theme is deployed there.', 'content-relay' ) );
+		}
+		if ( abs( $skew ) > 60 ) {
+			$this->notice( 'warning', __( 'The clocks of the two sites differ by more than a minute. Requests are refused beyond five minutes.', 'content-relay' ) );
+		}
+	}
 }
