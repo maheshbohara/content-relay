@@ -206,4 +206,52 @@ final class Settings_Page {
 			$this->notice( 'error', sprintf( __( 'There is no active key %s.', 'content-relay' ), $kid ) );
 		}
 	}
+
+	/**
+	 * Adds a connection after a successful handshake.
+	 */
+	private function add_connection(): void {
+		try {
+			$sender = Sender::for_site();
+		} catch ( Send_Exception $e ) {
+			$this->notice( 'error', $e->plain_message() );
+			return;
+		}
+
+		$label = strtolower( self::posted( 'label' ) );
+		if ( ! Connections::is_valid_label( $label ) ) {
+			$this->notice( 'error', __( 'Labels use lowercase letters, digits, hyphens and underscores, for example prod.', 'content-relay' ) );
+			return;
+		}
+
+		$key = ( new Key_Codec() )->decode( self::posted( 'key' ) );
+		if ( null === $key ) {
+			$this->notice( 'error', __( 'That is not a valid Content Relay key. Paste the whole key; it starts with contentrelay1.', 'content-relay' ) );
+			return;
+		}
+
+		try {
+			$environment = Sender::handshake_client( new Client( $key ) );
+			$sender->connections()->add( $label, $key, get_current_user_id() );
+		} catch ( Send_Exception $e ) {
+			$this->notice( 'error', $e->plain_message() );
+			return;
+		} catch ( Connection_Exception $e ) {
+			$this->notice( 'error', html_entity_decode( $e->getMessage(), ENT_QUOTES | ENT_HTML5, 'UTF-8' ) );
+			return;
+		}
+
+		$this->notice(
+			'success',
+			sprintf(
+				/* translators: 1: connection label, 2: receiver address, 3: WordPress version, 4: theme name, 5: theme version. */
+				__( 'Connection %1$s added: %2$s (WordPress %3$s, theme %4$s %5$s).', 'content-relay' ),
+				$label,
+				(string) ( $environment['home_url'] ?? $key['url'] ),
+				(string) ( $environment['wp'] ?? '?' ),
+				(string) ( $environment['theme']['stylesheet'] ?? '?' ),
+				(string) ( $environment['theme']['version'] ?? '?' )
+			)
+		);
+	}
 }
