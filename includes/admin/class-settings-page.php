@@ -451,4 +451,70 @@ final class Settings_Page {
 			echo '</form>';
 		}
 	}
+
+	/**
+	 * Connections section.
+	 */
+	private function render_connections(): void {
+		echo '<h2>' . esc_html__( 'Connections', 'content-relay' ) . '</h2>';
+
+		if ( ! Config::can_send() ) {
+			echo '<p>' . esc_html__( 'Sending is off, so this site cannot relay content. Connections stored earlier stay listed.', 'content-relay' ) . '</p>';
+		} else {
+			echo '<p class="description">' . esc_html__( 'A connection is a site this one relays content to, added with a key issued by that site.', 'content-relay' ) . '</p>';
+		}
+
+		$connections = get_option( Connections::OPTION, array() );
+		$connections = is_array( $connections ) ? $connections : array();
+		if ( array() !== $connections ) {
+			echo '<table class="widefat striped content-relay-table"><thead><tr>';
+			foreach ( array( __( 'Label', 'content-relay' ), __( 'Receiver', 'content-relay' ), __( 'Key id', 'content-relay' ), __( 'Added by', 'content-relay' ), __( 'Added', 'content-relay' ), '' ) as $heading ) {
+				echo '<th scope="col">' . esc_html( $heading ) . '</th>';
+			}
+			echo '</tr></thead><tbody>';
+
+			foreach ( $connections as $label => $record ) {
+				$user = get_userdata( (int) ( $record['added_by'] ?? 0 ) );
+				echo '<tr>';
+				echo '<td><strong>' . esc_html( (string) $label ) . '</strong></td>';
+				printf( '<td><a href="%1$s" target="_blank" rel="noopener noreferrer">%2$s</a></td>', esc_url( (string) ( $record['url'] ?? '' ) ), esc_html( (string) ( $record['url'] ?? '' ) ) );
+				echo '<td><code>' . esc_html( (string) ( $record['kid'] ?? '' ) ) . '</code></td>';
+				echo '<td>' . esc_html( $user instanceof \WP_User ? $user->user_login : '' ) . '</td>';
+				echo '<td>' . esc_html( Admin::time( $record['added_at'] ?? '' ) ) . '</td>';
+				echo '<td class="content-relay-actions">';
+				if ( Config::can_send() ) {
+					self::form_open( 'test_connection' );
+					printf( '<input type="hidden" name="label" value="%s" />', esc_attr( (string) $label ) );
+					printf( '<button type="submit" class="button">%s</button>', esc_html__( 'Test', 'content-relay' ) );
+					echo '</form>';
+				}
+				self::form_open( 'remove_connection' );
+				printf( '<input type="hidden" name="label" value="%s" />', esc_attr( (string) $label ) );
+				printf(
+					'<button type="submit" class="button button-link-delete" onclick="return confirm(%1$s)">%2$s</button>',
+					esc_attr( (string) wp_json_encode( __( 'Remove this connection? Its key stays valid on the receiver until revoked there.', 'content-relay' ) ) ),
+					esc_html__( 'Remove', 'content-relay' )
+				);
+				echo '</form></td></tr>';
+			}
+			echo '</tbody></table>';
+		}
+
+		if ( Config::can_send() ) {
+			echo '<h3>' . esc_html__( 'Add connection', 'content-relay' ) . '</h3>';
+			echo '<p class="description">' . esc_html__( 'On the receiving site, issue a key under Settings → Content Relay, then paste it here. The key is checked with a handshake before it is stored.', 'content-relay' ) . '</p>';
+			self::form_open( 'add_connection' );
+			printf(
+				'<p><label for="content-relay-connection-label">%1$s</label><br /><input type="text" id="content-relay-connection-label" name="label" class="regular-text" required pattern="[a-z0-9][a-z0-9_\-]{0,63}" placeholder="%2$s" /></p>',
+				esc_html__( 'Label', 'content-relay' ),
+				esc_attr__( 'prod', 'content-relay' )
+			);
+			printf(
+				'<p><label for="content-relay-connection-key">%1$s</label><br /><textarea id="content-relay-connection-key" name="key" class="large-text code" rows="3" required placeholder="contentrelay1.…"></textarea></p>',
+				esc_html__( 'Key', 'content-relay' )
+			);
+			submit_button( __( 'Add connection', 'content-relay' ), 'primary', 'submit', false );
+			echo '</form>';
+		}
+	}
 }
