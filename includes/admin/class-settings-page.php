@@ -517,4 +517,69 @@ final class Settings_Page {
 			echo '</form>';
 		}
 	}
+
+	/**
+	 * One on/off switch row of the status table. Each switch is its own form, so a click saves it; a switch pinned in
+	 * wp-config.php is shown disabled.
+	 *
+	 * @param string $name        `send` or `receive`.
+	 * @param string $label       Row label.
+	 * @param string $description What "on" means.
+	 */
+	private static function switch_row( string $name, string $label, string $description ): void {
+		$on     = Config::is_on( $name );
+		$locked = Config::is_locked( $name );
+		$id     = 'content-relay-switch-' . $name;
+
+		printf( '<tr><th scope="row" id="%1$s-label">%2$s</th><td>', esc_attr( $id ), esc_html( $label ) );
+		self::form_open( 'toggle_switch' );
+		printf( '<input type="hidden" name="switch" value="%s" />', esc_attr( $name ) );
+		printf( '<input type="hidden" name="on" value="%s" />', $on ? '0' : '1' );
+		printf(
+			'<button type="submit" id="%1$s" class="content-relay-switch" role="switch" aria-checked="%2$s" aria-labelledby="%1$s-label" aria-describedby="%1$s-description"%3$s><span class="content-relay-switch-track" aria-hidden="true"><span class="content-relay-switch-thumb"></span></span><span class="content-relay-switch-state">%4$s</span></button>',
+			esc_attr( $id ),
+			$on ? 'true' : 'false',
+			$locked ? ' disabled' : '',
+			$on ? esc_html__( 'On', 'content-relay' ) : esc_html__( 'Off', 'content-relay' )
+		);
+		echo '</form>';
+
+		printf( '<p class="description" id="%1$s-description">%2$s', esc_attr( $id ), esc_html( $description ) );
+		if ( $locked ) {
+			/* translators: %s: wp-config.php constant name. */
+			echo ' ' . esc_html( sprintf( __( 'Set by %s in wp-config.php, so it cannot be changed here.', 'content-relay' ), Config::SWITCHES[ $name ] ) );
+		}
+		echo '</p></td></tr>';
+	}
+
+	/**
+	 * Row with a checkbox per post type that can be relayed from this site.
+	 */
+	private function post_types_row(): void {
+		$chosen = Config::post_types();
+		$locked = has_filter( 'content_relay_post_types' );
+
+		printf( '<tr><th scope="row">%s</th><td>', esc_html__( 'Relayable post types', 'content-relay' ) );
+		self::form_open( 'save_post_types' );
+		echo '<fieldset><legend class="screen-reader-text">' . esc_html__( 'Relayable post types', 'content-relay' ) . '</legend>';
+		foreach ( get_post_types( array( 'show_ui' => true ), 'objects' ) as $type ) {
+			if ( ! Config::is_relayable_post_type( $type->name ) ) {
+				continue;
+			}
+			printf(
+				'<label style="display:inline-block;margin:0 1.5em .5em 0"><input type="checkbox" name="post_types[]" value="%1$s"%2$s /> %3$s <code>%1$s</code></label>',
+				esc_attr( $type->name ),
+				checked( in_array( $type->name, $chosen, true ), true, false ),
+				esc_html( $type->labels->name )
+			);
+		}
+		echo '</fieldset>';
+		submit_button( __( 'Save post types', 'content-relay' ), 'secondary', 'submit', false );
+		echo '</form>';
+		echo '<p class="description">' . esc_html__( 'Posts of these types get a "Relay to…" action and can be relayed with WP-CLI. Each relay still carries every language version and the media it uses.', 'content-relay' );
+		if ( $locked ) {
+			echo ' ' . esc_html__( 'A content_relay_post_types filter in code also adjusts this list.', 'content-relay' );
+		}
+		echo '</p></td></tr>';
+	}
 }
