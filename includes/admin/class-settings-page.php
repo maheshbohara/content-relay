@@ -582,4 +582,38 @@ final class Settings_Page {
 		}
 		echo '</p></td></tr>';
 	}
+
+	/**
+	 * Opens a form for an action, with its nonce.
+	 *
+	 * @param string $action Action.
+	 */
+	private static function form_open( string $action ): void {
+		echo '<form method="post" class="content-relay-form">';
+		wp_nonce_field( 'content_relay_' . $action );
+		printf( '<input type="hidden" name="content_relay_action" value="%s" />', esc_attr( $action ) );
+	}
+
+	/**
+	 * A submitted text value.
+	 *
+	 * @param string $name Field name.
+	 */
+	private static function posted( string $name ): string {
+		// phpcs:ignore WordPress.Security.NonceVerification.Missing -- Only called from load(), after check_admin_referer().
+		return isset( $_POST[ $name ] ) ? trim( sanitize_text_field( wp_unslash( $_POST[ $name ] ) ) ) : '';
+	}
+
+	/**
+	 * Queues a notice.
+	 *
+	 * @param string $type    `success`, `warning` or `error`.
+	 * @param string $message Plain-text message.
+	 */
+	private function notice( string $type, string $message ): void {
+		$this->notices[] = array(
+			'type'    => $type,
+			'message' => $message,
+		);
+	}
 }
