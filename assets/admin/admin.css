@@ -1,0 +1,54 @@
+/* Content Relay admin screens. */
+
+.content-relay .content-relay-card {
+	background: #fff;
+	border: 1px solid #c3c4c7;
+	border-radius: 4px;
+	margin: 16px 0;
+	max-width: 1100px;
+	padding: 4px 20px 16px;
+}
+
+.content-relay .content-relay-card h2 {
+	margin-top: 16px;
+}
+
+.content-relay .content-relay-table {
+	margin: 8px 0 16px;
+	max-width: 1100px;
+}
+
+.content-relay .content-relay-table td,
+.content-relay .content-relay-table th {
+	vertical-align: top;
+}
+
+.content-relay .content-relay-form {
+	display: inline-block;
+	margin: 0 6px 6px 0;
+}
+
+.content-relay .content-relay-actions {
+	white-space: nowrap;
+}
+
+.content-relay .content-relay-notice ul,
+.content-relay .content-relay-list {
+	list-style: disc;
+	margin: 4px 0 8px 20px;
+}
+
+.content-relay .content-relay-buttons {
+	align-items: center;
+	display: flex;
+	flex-wrap: wrap;
+	gap: 8px;
+}
+
+.content-relay .content-relay-overwrite {
+	margin-right: 8px;
+}
+
+.content-relay .content-relay-muted {
+	color: #646970;
+}
