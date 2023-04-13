@@ -1,0 +1,14 @@
+<?xml version="1.0"?>
+<!-- Integration suite: real WordPress on a throwaway database. See tests/integration/bootstrap.php. -->
+<phpunit
+	bootstrap="tests/integration/bootstrap.php"
+	colors="true"
+	failOnWarning="true"
+	failOnRisky="true"
+>
+	<testsuites>
+		<testsuite name="integration">
+			<directory suffix="-test.php">tests/integration</directory>
+		</testsuite>
+	</testsuites>
+</phpunit>
