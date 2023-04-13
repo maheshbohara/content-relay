@@ -1,0 +1,13 @@
+<wpml-config>
+	<!-- Content Relay identities and sync state belong to one element; WPML must never copy them to a translation. -->
+	<custom-fields>
+		<custom-field action="ignore">_content_relay_uuid</custom-field>
+		<custom-field action="ignore">_content_relay_sync</custom-field>
+		<custom-field action="ignore">_content_relay_pending</custom-field>
+		<custom-field action="ignore">_content_relay_superseded_by</custom-field>
+	</custom-fields>
+	<custom-term-fields>
+		<custom-term-field action="ignore">_content_relay_uuid</custom-term-field>
+		<custom-term-field action="ignore">_content_relay_sync</custom-term-field>
+	</custom-term-fields>
+</wpml-config>
