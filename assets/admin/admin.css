@@ -173,3 +173,68 @@
 	background: #dbe9fb;
 	color: #0a3a70;
 }
+
+.content-relay .content-relay-badge.is-overwrite {
+	background: #fcf0d4;
+	color: #6b4700;
+}
+
+.content-relay .content-relay-badge.is-off,
+.content-relay .content-relay-badge.is-conflict,
+.content-relay .content-relay-badge.is-missing {
+	background: #fbe3e4;
+	color: #8a1f21;
+}
+
+/* Diffs. */
+.content-relay .content-relay-diff-row > td {
+	background: #f6f7f7;
+}
+
+.content-relay .content-relay-diff h4 {
+	margin: 12px 0 4px;
+}
+
+.content-relay .content-relay-diff td.is-old,
+.content-relay .content-relay-diff td.is-new {
+	font-family: Consolas, Monaco, monospace;
+	font-size: 12px;
+	word-break: break-all;
+}
+
+.content-relay .content-relay-diff td.is-old {
+	background: #fcf0f1;
+}
+
+.content-relay .content-relay-diff td.is-new {
+	background: #edfaef;
+}
+
+.content-relay .content-relay-hunk {
+	background: #fff;
+	border: 1px solid #dcdcde;
+	font-size: 12px;
+	margin: 6px 0;
+	max-height: 420px;
+	overflow: auto;
+	padding: 6px 0;
+	white-space: pre-wrap;
+	word-break: break-all;
+}
+
+.content-relay .content-relay-hunk span {
+	display: block;
+	padding: 0 8px;
+}
+
+.content-relay .content-relay-hunk .is-header {
+	color: #646970;
+}
+
+.content-relay .content-relay-hunk .is-add {
+	background: #edfaef;
+}
+
+.content-relay .content-relay-hunk .is-del {
+	background: #fcf0f1;
+}
