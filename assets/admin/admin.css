@@ -117,3 +117,59 @@
 	transition: transform 0.15s ease-in-out;
 	width: 16px;
 }
+
+.content-relay .content-relay-switch[aria-checked="true"] .content-relay-switch-track {
+	background: #2271b1;
+}
+
+.content-relay .content-relay-switch[aria-checked="true"] .content-relay-switch-thumb {
+	transform: translateX(18px);
+}
+
+.content-relay .content-relay-switch:focus-visible .content-relay-switch-track {
+	box-shadow: 0 0 0 2px #fff, 0 0 0 4px #2271b1;
+}
+
+.content-relay .content-relay-switch-state {
+	font-weight: 600;
+	min-width: 24px;
+	text-align: left;
+}
+
+.content-relay td > .content-relay-form + .description {
+	margin-top: 2px;
+}
+
+@media (prefers-reduced-motion: reduce) {
+
+	.content-relay .content-relay-switch-track,
+	.content-relay .content-relay-switch-thumb {
+		transition: none;
+	}
+}
+
+/* Action and status badges. */
+.content-relay .content-relay-badge {
+	background: #f0f0f1;
+	border-radius: 3px;
+	color: #1d2327;
+	display: inline-block;
+	font-size: 12px;
+	line-height: 1.8;
+	padding: 0 8px;
+	white-space: nowrap;
+}
+
+.content-relay .content-relay-badge.is-on,
+.content-relay .content-relay-badge.is-create,
+.content-relay .content-relay-badge.is-create-new-file {
+	background: #d1f0d8;
+	color: #0a4b1c;
+}
+
+.content-relay .content-relay-badge.is-update,
+.content-relay .content-relay-badge.is-adopt,
+.content-relay .content-relay-badge.is-replace-file {
+	background: #dbe9fb;
+	color: #0a3a70;
+}
