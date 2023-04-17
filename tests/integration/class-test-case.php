@@ -121,4 +121,72 @@ abstract class Test_Case extends \WP_UnitTestCase {
 			esc_url( $url )
 		);
 	}
+
+	/**
+	 * Exports a page.
+	 *
+	 * @param int $post_id Page id.
+	 * @return array<string, mixed>
+	 */
+	protected function export( int $post_id ): array {
+		return ( new Exporter( new Export_Context( Adapter_Factory::create() ) ) )->export( $post_id );
+	}
+
+	/**
+	 * Writes a manifest and its files to a bundle directory, as `wp content-relay bundle` does.
+	 *
+	 * @param array<string, mixed> $manifest Manifest.
+	 */
+	protected function bundle( array $manifest ): Bundle {
+		$dir     = $this->temp_dir();
+		$uploads = wp_get_upload_dir();
+		wp_mkdir_p( $dir . '/files' );
+
+		foreach ( $manifest['objects'] as $record ) {
+			if ( ! empty( $record['file'] ) ) {
+				copy( $uploads['basedir'] . '/' . $record['file']['source'], $dir . '/files/' . $record['file']['sha1'] );
+			}
+		}
+		file_put_contents( $dir . '/manifest.json', (string) wp_json_encode( $manifest ) );
+
+		return Bundle::from_directory( $dir );
+	}
+
+	/**
+	 * A receiver context for this site.
+	 */
+	protected function context(): Receive_Context {
+		return new Receive_Context( Adapter_Factory::create() );
+	}
+
+	/**
+	 * Plan items by object key.
+	 *
+	 * @param array<string, mixed> $plan Plan.
+	 * @return array<string, array<string, mixed>>
+	 */
+	protected static function items( array $plan ): array {
+		$items = array();
+		foreach ( $plan['items'] as $item ) {
+			$items[ $item['key'] ] = $item;
+		}
+
+		return $items;
+	}
+
+	/**
+	 * Receiver id written for an object key.
+	 *
+	 * @param array<string, mixed> $result Apply result.
+	 * @param string               $key    Object key.
+	 */
+	protected static function written_id( array $result, string $key ): int {
+		foreach ( $result['written'] as $row ) {
+			if ( $row['key'] === $key ) {
+				return (int) $row['id'];
+			}
+		}
+
+		return 0;
+	}
 }
