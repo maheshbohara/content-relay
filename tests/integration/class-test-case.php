@@ -189,4 +189,38 @@ abstract class Test_Case extends \WP_UnitTestCase {
 
 		return 0;
 	}
+
+	/**
+	 * A new temporary directory.
+	 */
+	protected function temp_dir(): string {
+		$dir = rtrim( sys_get_temp_dir(), '/' ) . '/content-relay-test-' . wp_generate_password( 12, false );
+		wp_mkdir_p( $dir );
+		$this->temp_dirs[] = $dir;
+
+		return $dir;
+	}
+
+	/**
+	 * Removes a directory tree.
+	 *
+	 * @param string $dir Directory.
+	 */
+	private static function remove_dir( string $dir ): void {
+		if ( ! is_dir( $dir ) ) {
+			return;
+		}
+		foreach ( (array) scandir( $dir ) as $entry ) {
+			if ( '.' === $entry || '..' === $entry ) {
+				continue;
+			}
+			$path = $dir . '/' . $entry;
+			if ( is_dir( $path ) ) {
+				self::remove_dir( $path );
+			} else {
+				unlink( $path );
+			}
+		}
+		rmdir( $dir );
+	}
 }
