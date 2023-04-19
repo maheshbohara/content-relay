@@ -109,4 +109,63 @@ final class Sender_Loopback_Test extends Test_Case {
 		$this->expectException( Send_Exception::class );
 		$sender->verify( $session );
 	}
+
+	/**
+	 * Serves requests to this site in-process: REST routes through the REST server, any other page as plain HTML.
+	 *
+	 * @param false|array<string, mixed>|\WP_Error $pre  Short-circuit value.
+	 * @param array<string, mixed>                 $args Request arguments.
+	 * @param string                               $url  URL.
+	 * @return false|array<string, mixed>|\WP_Error
+	 */
+	public function serve_locally( $pre, $args, $url ) {
+		$home = home_url();
+		if ( 0 !== strpos( $url, $home ) ) {
+			return $pre;
+		}
+
+		$rest = home_url( '/wp-json' );
+		if ( 0 !== strpos( $url, $rest ) ) {
+			return self::response( 200, '<!doctype html><html><body><p>Relayed page</p></body></html>' );
+		}
+
+		$parts = wp_parse_url( substr( $url, strlen( $rest ) ) );
+		$query = array();
+		parse_str( (string) ( $parts['query'] ?? '' ), $query );
+
+		$request = new \WP_REST_Request( (string) $args['method'], (string) ( $parts['path'] ?? '/' ) );
+		$request->set_query_params( $query );
+		foreach ( (array) $args['headers'] as $name => $value ) {
+			$request->set_header( (string) $name, (string) $value );
+		}
+		if ( is_string( $args['body'] ?? null ) ) {
+			$request->set_body( $args['body'] );
+		}
+
+		$user     = get_current_user_id();
+		$response = rest_do_request( $request );
+		wp_set_current_user( $user );
+
+		return self::response( $response->get_status(), (string) wp_json_encode( rest_get_server()->response_to_data( $response, false ) ) );
+	}
+
+	/**
+	 * A response in the shape wp_remote_request() returns.
+	 *
+	 * @param int    $code HTTP status.
+	 * @param string $body Body.
+	 * @return array<string, mixed>
+	 */
+	private static function response( int $code, string $body ): array {
+		return array(
+			'headers'  => array(),
+			'body'     => $body,
+			'response' => array(
+				'code'    => $code,
+				'message' => '',
+			),
+			'cookies'  => array(),
+			'filename' => null,
+		);
+	}
 }
