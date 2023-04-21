@@ -124,4 +124,39 @@ final class Verifier_Test extends Test_Case {
 		$this->assertContains( 'GET https://receiver.test/wp-content/uploads/a-300x200.jpg', $requests );
 		$this->assertNotContains( 'GET https://receiver.test/draft/', $requests );
 	}
+
+	/**
+	 * Check id => passed, for one page.
+	 *
+	 * @param array<string, mixed> $page Page report.
+	 * @return array<string, bool>
+	 */
+	private static function results( array $page ): array {
+		$results = array();
+		foreach ( $page['checks'] as $check ) {
+			$results[ $check['check'] ] = $check['ok'];
+		}
+
+		return $results;
+	}
+
+	/**
+	 * A response in the shape wp_remote_request() returns.
+	 *
+	 * @param int    $code HTTP status.
+	 * @param string $body Body.
+	 * @return array<string, mixed>
+	 */
+	private static function response( int $code, string $body ): array {
+		return array(
+			'headers'  => array(),
+			'body'     => $body,
+			'response' => array(
+				'code'    => $code,
+				'message' => '',
+			),
+			'cookies'  => array(),
+			'filename' => null,
+		);
+	}
 }
