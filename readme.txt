@@ -29,3 +29,20 @@ Content is written byte for byte. Block markup is edited only where a reference 
 The receiving site plans every relay and answers with a list of what it will create, update, reuse or refuse, with a field, meta and content diff for anything it would replace. Nothing is written until an administrator approves that plan. If the receiving site changes in the meantime, the relay is refused and the plan must be approved again.
 
 Content that was edited on the receiving site since its last relay is blocked. It can be relayed with **Overwrite**, which keeps a backup.
+
+= After a relay =
+
+* Object caches, WPML caches and Yoast indexables of the relayed posts are cleared.
+* Page caches are purged for WP Rocket, LiteSpeed Cache, W3 Total Cache, WP Super Cache, SiteGround Optimizer and Breeze. Other cache layers can hook `content_relay_purge_page_cache`.
+* The sending site fetches each relayed page from the receiving site and checks the HTTP status and address, `<html lang>`, the hreflang alternates, that no link still points at the sending site, and that its images load.
+* Every relay is logged on both sites under **Tools → Content Relay history** and can be rolled back from either: what it replaced is restored and what it created is removed.
+
+= What a relay does not carry =
+
+* **The theme.** Deploy it first: a relay is blocked when the theme or its version differs.
+* Comments.
+* Menus, widgets, site options and plugin settings.
+* User accounts. Authors are matched by login and fall back to the key's administrator.
+* Content a page lists by query instead of by ID, such as "the latest events tagged with this page's term". A theme can declare such dependencies with the `content_relay_query_dependencies` filter; the receiving site then warns when they find nothing.
+* Parent pages and referenced posts must already exist on the receiving site; the plan names any that are missing.
+* Images held in ACF fields of a term the relay has to create are not relayed; those references are removed and reported.
