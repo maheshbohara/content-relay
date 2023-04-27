@@ -98,3 +98,17 @@ Content Relay contacts only the sites you connect it to with a key: it sends the
 5. On the sending site, hover a page in **Pages** and choose **Relay to…**. To relay posts or custom post types as well, tick them under **Settings → Content Relay**.
 
 Sending and receiving can also be pinned in wp-config.php with `define( 'CONTENT_RELAY_SEND', true );` and `define( 'CONTENT_RELAY_RECEIVE', true );` (or `false`). A defined constant overrides the switch and locks it.
+
+== Frequently Asked Questions ==
+
+= Can a site both send and receive? =
+
+Yes. Switch both on and connect each site to the other with a key issued by that site.
+
+= I copied the production database to a development site. Is that a problem? =
+
+A database copy carries the switches and the keys production issued, so the copy arrives with receiving switched on and those keys active. Switch receiving off on the copy, or pin `CONTENT_RELAY_RECEIVE` to `false` in its wp-config.php. Stored connection keys cannot be decrypted on a site with different salts.
+
+= What happens if a relay fails halfway? =
+
+The content is committed in one database transaction. If anything fails, the transaction is rolled back and the media created for that relay are removed.
