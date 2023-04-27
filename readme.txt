@@ -130,3 +130,6 @@ Deactivating keeps everything. Deleting the plugin removes its settings, keys an
 * References the sender cannot resolve — deleted posts, revisions, terms of unregistered taxonomies, skipped media — are dropped (mapped to 0) instead of blocking the relay.
 * Duplicates on the receiver (same file or same address) are resolved by the sender's own id on sites cloned from one database; a referenced post with no language is found by its address.
 * Fixed: a re-relay of a post with dropped references no longer reports it as changed.
+
+= 0.1.0 =
+* First release: keys and connections, the relay screen with plan and diffs, page-cache purging, checks after a relay, history with rollback on both sites, WP-CLI commands and offline bundles.
