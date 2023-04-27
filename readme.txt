@@ -77,3 +77,24 @@ Content Relay contacts only the sites you connect it to with a key: it sends the
 * `wp content-relay rollback <session> --to=<label>` — roll back a relay sent to another site; without `--to`, a relay received here.
 * `wp content-relay history [--direction=out|in] [--offline]`
 * `wp content-relay discover <page-id>` · `bundle <page-id> --dir=<dir>` · `plan <dir>` · `apply <dir>` — an offline bundle, for sites that cannot reach each other.
+
+= Hooks =
+
+* `content_relay_post_types` — post types that can be relayed (default: pages).
+* `content_relay_meta_denylist` — meta keys never relayed.
+* `content_relay_resolvers` — reference resolvers used to discover what a page needs.
+* `content_relay_query_dependencies` — content a page lists by query, checked after a relay.
+* `content_relay_page_cache_integrations`, `content_relay_purge_page_cache` — page-cache purging.
+* `content_relay_before_commit`, `content_relay_applied` — around the content commit on the receiving site.
+* `content_relay_request_denied` — a refused relay request.
+* `content_relay_http_args`, `content_relay_max_chunk_bytes` — transport tuning.
+
+== Installation ==
+
+1. Install and activate Content Relay on **both** sites.
+2. On the receiving site, open **Settings → Content Relay**, switch **Receiving** on and issue a key. Copy it: it is shown once.
+3. On the sending site, open **Settings → Content Relay**, switch **Sending** on and add a connection by pasting the key. A handshake checks it before it is stored.
+4. Deploy the same theme to both sites.
+5. On the sending site, hover a page in **Pages** and choose **Relay to…**. To relay posts or custom post types as well, tick them under **Settings → Content Relay**.
+
+Sending and receiving can also be pinned in wp-config.php with `define( 'CONTENT_RELAY_SEND', true );` and `define( 'CONTENT_RELAY_RECEIVE', true );` (or `false`). A defined constant overrides the switch and locks it.
