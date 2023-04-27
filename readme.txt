@@ -46,3 +46,18 @@ Content that was edited on the receiving site since its last relay is blocked. I
 * Content a page lists by query instead of by ID, such as "the latest events tagged with this page's term". A theme can declare such dependencies with the `content_relay_query_dependencies` filter; the receiving site then warns when they find nothing.
 * Parent pages and referenced posts must already exist on the receiving site; the plan names any that are missing.
 * Images held in ACF fields of a term the relay has to create are not relayed; those references are removed and reported.
+
+= Security =
+
+* Every request is signed with Ed25519 and carries a timestamp and a single-use nonce. Refused requests are rate-limited per IP.
+* The receiving site keeps only the public half of a key; the key itself is shown once. The sending site stores it encrypted with `CONTENT_RELAY_ENCRYPTION_KEY`, or with the `AUTH_KEY` and `SECURE_AUTH_KEY` salts.
+* A relay runs as the administrator who issued the key. Only administrators (`manage_options`) can relay, issue keys or add connections.
+* The receiving site must use HTTPS.
+* `CONTENT_RELAY_IP_ALLOWLIST` in wp-config.php limits which sending IPs are accepted.
+
+= Requirements and limits =
+
+* PHP 7.4 or later, WordPress 6.4 or later, InnoDB tables.
+* WPML is supported; Polylang is not. ACF (including ACF blocks), core blocks and Yoast SEO are supported; Elementor content is not.
+* A receiving site behind HTTP basic authentication is not supported yet.
+* Tested on single sites.
