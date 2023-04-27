@@ -112,3 +112,21 @@ A database copy carries the switches and the keys production issued, so the copy
 = What happens if a relay fails halfway? =
 
 The content is committed in one database transaction. If anything fails, the transaction is rolled back and the media created for that relay are removed.
+
+= The receiving site uses Redis or Memcached. =
+
+Content Relay clears the cache entries of the posts it writes. Tick **Flush the entire object cache** on the relay screen, or pass `--flush-cache` to `wp content-relay push`, if other cached data depends on them.
+
+= What does deleting the plugin remove? =
+
+Deactivating keeps everything. Deleting the plugin removes its settings, keys and connections, the relay log, the relay identity stored on posts and terms, and `wp-content/uploads/content-relay/`, which holds the rollback backups. Relayed pages, media and terms stay.
+
+== Changelog ==
+
+= 0.2.0 =
+* Renamed from Page Relay to Content Relay: the plugin relays posts and custom post types as well as pages. Options, hooks, constants, the REST routes and the WP-CLI command are now named `content_relay` / `content-relay`; data stored under the old names is not migrated.
+* `wp content-relay push-many`: relay many posts at once (by ids, `--tag`, `--category` or `--all`, matched in every language), one translation group per session, with `--dry-run`, `--existing=update|skip`, `--media-fallback` and `--skip-missing-media`.
+* Settings: choose the relayable post types (pages by default).
+* References the sender cannot resolve — deleted posts, revisions, terms of unregistered taxonomies, skipped media — are dropped (mapped to 0) instead of blocking the relay.
+* Duplicates on the receiver (same file or same address) are resolved by the sender's own id on sites cloned from one database; a referenced post with no language is found by its address.
+* Fixed: a re-relay of a post with dropped references no longer reports it as changed.
