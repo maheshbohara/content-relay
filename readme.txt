@@ -61,3 +61,19 @@ Content that was edited on the receiving site since its last relay is blocked. I
 * WPML is supported; Polylang is not. ACF (including ACF blocks), core blocks and Yoast SEO are supported; Elementor content is not.
 * A receiving site behind HTTP basic authentication is not supported yet.
 * Tested on single sites.
+
+= Connections to other sites =
+
+Content Relay contacts only the sites you connect it to with a key: it sends the relay to the receiving site and afterwards fetches the relayed pages from it to check them. It uses no third-party service, sends nothing to the plugin author and does no tracking.
+
+= WP-CLI =
+
+* `wp content-relay keys generate --label=<label>` · `keys list` · `keys revoke <kid>` — on the receiving site.
+* `wp content-relay connections add <key> --label=<label>` · `connections list` · `connections test <label>` · `connections remove <label>` — on the sending site.
+* `wp content-relay plan <page-id> --to=<label>` — ask the receiving site for its plan without relaying.
+* `wp content-relay push <page-id> --to=<label> [--overwrite] [--flush-cache] [--yes]` — relay, then check the pages.
+* `wp content-relay push-many [<id>...] --to=<label> [--post_type=<type>] [--tag=<slug>] [--category=<slug>] [--all] [--dry-run]` — relay many posts, one translation group at a time.
+* `wp content-relay verify <session>` — check a relay's pages again.
+* `wp content-relay rollback <session> --to=<label>` — roll back a relay sent to another site; without `--to`, a relay received here.
+* `wp content-relay history [--direction=out|in] [--offline]`
+* `wp content-relay discover <page-id>` · `bundle <page-id> --dir=<dir>` · `plan <dir>` · `apply <dir>` — an offline bundle, for sites that cannot reach each other.
