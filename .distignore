@@ -1,0 +1,25 @@
+# Files left out of the distributed plugin (development and test tooling).
+/.git
+/.github
+/.gitignore
+/.distignore
+/.wp-env.json
+/.wp-env.override.json
+/.phpunit.result.cache
+/.claude
+/.vscode
+/.idea
+.DS_Store
+/build
+/composer.json
+/composer.lock
+/node_modules
+/package.json
+/package-lock.json
+/phpcs.xml.dist
+/phpstan.neon.dist
+/phpunit.xml.dist
+/phpunit-integration.xml.dist
+/tests
+/vendor
+*.zip
