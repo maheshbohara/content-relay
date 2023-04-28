@@ -1,0 +1,22 @@
+{
+	"$schema": "https://schemas.wp.org/trunk/wp-env.json",
+	"core": null,
+	"port": 8900,
+	"testsEnvironment": false,
+	"plugins": [
+		"https://downloads.wordpress.org/plugin/plugin-check.latest-stable.zip"
+	],
+	"mappings": {
+		"wp-content/plugins/content-relay": "."
+	},
+	"config": {
+		"WP_DEBUG": true,
+		"WP_DEBUG_LOG": true,
+		"WP_DEBUG_DISPLAY": false,
+		"SCRIPT_DEBUG": true,
+		"CONTENT_RELAY_ALLOW_HTTP": true
+	},
+	"lifecycleScripts": {
+		"afterStart": "wp-env run cli wp plugin activate content-relay"
+	}
+}
