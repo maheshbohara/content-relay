@@ -3,7 +3,7 @@ Tags: staging, deployment, migration, multilingual, wpml
 Requires at least: 6.4
 Tested up to: 7.1
 Requires PHP: 7.4
-Stable tag: 0.2.0
+Stable tag: 1.0.0
 License: GPLv2 or later
 License URI: https://www.gnu.org/licenses/gpl-2.0.html
 
@@ -123,8 +123,12 @@ Deactivating keeps everything. Deleting the plugin removes its settings, keys an
 
 == Changelog ==
 
-= 0.2.0 =
+= 1.0.0 =
 * Renamed from Page Relay to Content Relay: the plugin relays posts and custom post types as well as pages. Options, hooks, constants, the REST routes and the WP-CLI command are now named `content_relay` / `content-relay`; data stored under the old names is not migrated.
+* A Settings link on the plugin's row of the Plugins screen.
+* Tested with WordPress 7.1.
+
+= 0.2.0 =
 * `wp content-relay push-many`: relay many posts at once (by ids, `--tag`, `--category` or `--all`, matched in every language), one translation group per session, with `--dry-run`, `--existing=update|skip`, `--media-fallback` and `--skip-missing-media`.
 * Settings: choose the relayable post types (pages by default).
 * References the sender cannot resolve — deleted posts, revisions, terms of unregistered taxonomies, skipped media — are dropped (mapped to 0) instead of blocking the relay.

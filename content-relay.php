@@ -2,9 +2,11 @@
 /**
  * Plugin Name:       Content Relay
  * Description:       Relay a page or post — every language version, its media and the content it needs — between two WordPress sites connected by a key.
- * Version:           0.2.0
+ * Version:           1.0.0
  * Requires at least: 6.4
  * Requires PHP:      7.4
+ * Author:            Mahesh Bohara
+ * Author URI:        http://www.maheshbohara.com.np/
  * License:           GPL-2.0-or-later
  * License URI:       https://www.gnu.org/licenses/gpl-2.0.html
  * Text Domain:       content-relay
@@ -15,7 +17,7 @@
 
 defined( 'ABSPATH' ) || exit;
 
-define( 'CONTENT_RELAY_VERSION', '0.2.0' );
+define( 'CONTENT_RELAY_VERSION', '1.0.0' );
 define( 'CONTENT_RELAY_SCHEMA', 1 );
 define( 'CONTENT_RELAY_FILE', __FILE__ );
 define( 'CONTENT_RELAY_DIR', plugin_dir_path( __FILE__ ) );
