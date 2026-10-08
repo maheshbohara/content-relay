@@ -24,6 +24,25 @@ final class Admin {
 		( new History_Page() )->register();
 		( new Relay_Screen() )->register();
 		( new Row_Action() )->register();
+
+		add_filter( 'plugin_action_links_' . plugin_basename( CONTENT_RELAY_FILE ), array( __CLASS__, 'action_links' ) );
+	}
+
+	/**
+	 * Adds a Settings link to the plugin's row on the Plugins screen.
+	 *
+	 * @param mixed $links Action links of the row.
+	 * @return array<int|string, string>
+	 */
+	public static function action_links( $links ): array {
+		$links = is_array( $links ) ? $links : array();
+		if ( ! current_user_can( 'manage_options' ) ) {
+			return $links;
+		}
+
+		array_unshift( $links, sprintf( '<a href="%1$s">%2$s</a>', esc_url( Settings_Page::url() ), esc_html__( 'Settings', 'content-relay' ) ) );
+
+		return $links;
 	}
 
 	/**
