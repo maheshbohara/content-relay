@@ -1,8 +1,23 @@
 # Content Relay
 
-Content Relay is a WordPress plugin that moves a single page, post or custom post type entry from one WordPress site to another, with every translation, its media and what it needs. The receiving site shows a plan first, nothing is written until an administrator approves it, and every relay can be rolled back.
+Content Relay is a WordPress plugin for moving one piece of content between the environments of the same site: **development, staging and production**. It relays a single page, post or custom post type entry, with every translation, its media and what it needs, in either direction.
 
-It is for the moment a piece of content is finished on one site, such as development, and has to appear on another, such as production, without copying a whole database.
+Typical uses:
+
+- A page built on **staging** is approved and has to go live on **production**.
+- A page edited on **production** is needed on **development** to work on it with real content.
+- A batch of posts written on one environment has to appear on another.
+
+In each case you move only that content, without copying a whole database or overwriting what else changed on the other site. The receiving site shows a plan first, nothing is written until an administrator approves it, and every relay can be rolled back.
+
+## The theme must match
+
+Content Relay only works between sites running **the same theme at the same version**. The receiving site checks this before it plans anything:
+
+- A different active theme, or a different theme version, blocks the relay.
+- The same version with different theme files gives a warning, because the theme deploy may be incomplete.
+
+Deploy the theme first, then relay the content. Content Relay moves content; it never moves theme or plugin code.
 
 ## What a relay carries
 
@@ -13,7 +28,7 @@ It is for the moment a piece of content is finished on one site, such as develop
 
 Content is written byte for byte. Block markup is edited only where a reference changes; it is never re-serialized.
 
-A relay does not carry the theme, menus, widgets, site options, plugin settings, user accounts or comments. The same theme and version must be deployed on both sites first.
+A relay does not carry the theme, menus, widgets, site options, plugin settings, user accounts or comments.
 
 ## How it works
 
@@ -41,6 +56,7 @@ Content Relay contacts only the sites you connect it to. It uses no third-party 
 - PHP 7.4 or newer
 - InnoDB tables
 - HTTPS on the receiving site
+- The same theme, at the same version, on both sites
 
 WPML, ACF (including ACF blocks), core blocks and Yoast SEO are supported. Polylang and Elementor content are not.
 
@@ -49,7 +65,7 @@ WPML, ACF (including ACF blocks), core blocks and Yoast SEO are supported. Polyl
 1. Install and activate Content Relay on **both** sites.
 2. On the receiving site, open **Settings → Content Relay**, switch **Receiving** on and issue a key. Copy it: it is shown once.
 3. On the sending site, open **Settings → Content Relay**, switch **Sending** on and add a connection by pasting the key.
-4. Deploy the same theme to both sites.
+4. Deploy the same theme, at the same version, to both sites.
 5. On the sending site, hover a page in **Pages** and choose **Relay to…**.
 
 The full user documentation, including hooks, security details and the FAQ, is in [readme.txt](readme.txt).

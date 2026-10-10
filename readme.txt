@@ -7,11 +7,21 @@ Stable tag: 1.0.0
 License: GPLv2 or later
 License URI: https://www.gnu.org/licenses/gpl-2.0.html
 
-Relay a page or post — every translation, its media and what it needs — from one WordPress site to another, with a reviewed plan and rollback.
+Move a page or post — translations, media and all — between your dev, staging and production WordPress sites, with a reviewed plan and rollback.
 
 == Description ==
 
-Content Relay moves a single page, post or custom post type entry between two WordPress sites you control, such as a development site and production, in either direction. It is for the moment a piece of content is finished on one site and has to appear on the other without copying a whole database.
+Content Relay moves one piece of content between the environments of the same site: development, staging and production. It relays a single page, post or custom post type entry, with every translation and its media, in either direction.
+
+Typical uses:
+
+* A page built on staging is approved and has to go live on production.
+* A page edited on production is needed on development to work on it with real content.
+* A batch of posts written on one environment has to appear on another.
+
+In each case you move only that content, without copying a whole database or overwriting what else changed on the other site.
+
+**The theme must match.** Content Relay only works between sites running the same theme at the same version. A different active theme or theme version blocks the relay; the same version with different theme files gives a warning. Deploy the theme first, then relay the content.
 
 The same plugin runs on both sites. The receiving site issues a key; the sending site stores it. From then on an administrator can hover an item in **Pages** (or any other content list switched on in the settings), choose **Relay to…**, review what the receiving site plans to do, and relay. Many posts can be relayed at once with WP-CLI.
 
@@ -94,7 +104,7 @@ Content Relay contacts only the sites you connect it to with a key: it sends the
 1. Install and activate Content Relay on **both** sites.
 2. On the receiving site, open **Settings → Content Relay**, switch **Receiving** on and issue a key. Copy it: it is shown once.
 3. On the sending site, open **Settings → Content Relay**, switch **Sending** on and add a connection by pasting the key. A handshake checks it before it is stored.
-4. Deploy the same theme to both sites.
+4. Deploy the same theme, at the same version, to both sites.
 5. On the sending site, hover a page in **Pages** and choose **Relay to…**. To relay posts or custom post types as well, tick them under **Settings → Content Relay**.
 
 Sending and receiving can also be pinned in wp-config.php with `define( 'CONTENT_RELAY_SEND', true );` and `define( 'CONTENT_RELAY_RECEIVE', true );` (or `false`). A defined constant overrides the switch and locks it.

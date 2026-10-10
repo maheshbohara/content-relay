@@ -1,7 +1,7 @@
 <?php
 /**
  * Plugin Name:       Content Relay
- * Description:       Relay a page or post — every language version, its media and the content it needs — between two WordPress sites connected by a key.
+ * Description:       Move a page or post — every language version and its media — between your development, staging and production sites. Both sites must run the same theme version.
  * Version:           1.0.0
  * Requires at least: 6.4
  * Requires PHP:      7.4
