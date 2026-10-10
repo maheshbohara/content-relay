@@ -7,7 +7,7 @@ Stable tag: 1.0.0
 License: GPLv2 or later
 License URI: https://www.gnu.org/licenses/gpl-2.0.html
 
-Move a page or post — translations, media and all — between your dev, staging and production WordPress sites, with a reviewed plan and rollback.
+Move a page or post, with translations and media, between dev, staging and production sites on the same theme version. Plan review and rollback.
 
 == Description ==
 

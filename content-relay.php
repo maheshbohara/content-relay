@@ -1,7 +1,7 @@
 <?php
 /**
  * Plugin Name:       Content Relay
- * Description:       Move a page or post — every language version and its media — between your development, staging and production sites. Both sites must run the same theme version.
+ * Description:       Move a page or post, with translations and media, between dev, staging and production sites on the same theme version. Plan review and rollback.
  * Version:           1.0.0
  * Requires at least: 6.4
  * Requires PHP:      7.4
