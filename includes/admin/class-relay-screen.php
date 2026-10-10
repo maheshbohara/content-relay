@@ -64,17 +64,10 @@ final class Relay_Screen {
 
 		$post = self::requested_post();
 
-		// A page without a menu entry gets no title from WordPress; give the browser tab one.
+		// A page without a menu entry gets no title from WordPress, which then passes null to strip_tags(); set one.
+		global $title;
 		/* translators: %s: page title. */
-		$label = null === $post ? __( 'Relay content', 'content-relay' ) : sprintf( __( 'Relay “%s”', 'content-relay' ), $post->post_title );
-		add_filter(
-			'admin_title',
-			static function ( $admin_title, $title ) use ( $label ) {
-				return '' === (string) $title ? $label . ' ' . $admin_title : $admin_title;
-			},
-			10,
-			2
-		);
+		$title = null === $post ? __( 'Relay content', 'content-relay' ) : sprintf( __( 'Relay “%s”', 'content-relay' ), $post->post_title ); // phpcs:ignore WordPress.WP.GlobalVariablesOverride.Prohibited -- The documented way to title an admin page that has no menu entry.
 
 		if ( null === $post || ! Config::can_send() ) {
 			return;

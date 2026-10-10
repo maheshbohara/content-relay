@@ -1,4 +1,5 @@
 === Content Relay ===
+Contributors: maheshbohara
 Tags: staging, deployment, migration, multilingual, wpml
 Requires at least: 6.4
 Tested up to: 7.1
