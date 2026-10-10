@@ -3,6 +3,7 @@
 /.github
 /.gitignore
 /.distignore
+/README.md
 /.wp-env.json
 /.wp-env.override.json
 /.phpunit.result.cache
