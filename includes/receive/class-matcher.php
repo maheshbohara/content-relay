@@ -89,7 +89,7 @@ final class Matcher {
 	}
 
 	/**
-	 * Matches a user by login, then email, then falls back to the acting administrator.
+	 * Matches a user by login, then email, then falls back to the context's author, the current user or an administrator.
 	 *
 	 * @param array<string, mixed> $record Manifest user.
 	 * @return array{id: int|null, via: string, candidates: int[], path_conflict: bool}
@@ -105,7 +105,7 @@ final class Matcher {
 			return $this->result( array( (int) $user->ID ), 'email' );
 		}
 
-		$fallback = get_current_user_id();
+		$fallback = 0 === $this->context->fallback_author ? get_current_user_id() : $this->context->fallback_author;
 		if ( 0 === $fallback ) {
 			$admins   = get_users(
 				array(

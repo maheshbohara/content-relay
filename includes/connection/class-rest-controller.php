@@ -27,9 +27,10 @@ defined( 'ABSPATH' ) || exit;
 /**
  * Routes of `content-relay/v1` (spec §13). Registered only when receiving is on, so otherwise they do not exist.
  *
- * Every route is signed (spec §5.3); the permission callback verifies the request and then acts as the administrator
- * who issued the key. Sessions are bound to the key that opened them. Responses are always
- * `{ ok, code, message, data }` and never carry paths, SQL or stack traces.
+ * Every route is signed (spec §5.3) and the permission callback verifies the request. A verified request is not logged
+ * in and gets no WordPress user or capability: these routes can stage, plan, apply and roll back relayed content and
+ * nothing else. Sessions are bound to the key that opened them. Responses are always `{ ok, code, message, data }` and
+ * never carry paths, SQL or stack traces.
  */
 final class Rest_Controller {
 
@@ -46,7 +47,7 @@ final class Rest_Controller {
 	/**
 	 * Verified caller of the current request.
 	 *
-	 * @var array{kid: string, sender_user: string, user_id: int}|null
+	 * @var array{kid: string, sender_user: string, user_id: int, issuer: string}|null
 	 */
 	private ?array $caller = null;
 
@@ -144,7 +145,7 @@ final class Rest_Controller {
 	}
 
 	/**
-	 * Verifies the signature and switches to the key's issuing administrator.
+	 * Verifies the signature and that the key's issuer is still an administrator. The current user is left untouched.
 	 *
 	 * Parameters are validated inside the callbacks, not as route args: WordPress validates args before the permission
 	 * callback, which would describe the API to unauthenticated callers.
@@ -207,12 +208,12 @@ final class Rest_Controller {
 			return $this->deny( $ip, 'issuer', $result['kid'] );
 		}
 
-		wp_set_current_user( $user->ID );
 		$this->keys->touch( $result['kid'], time() );
 		$this->caller = array(
 			'kid'         => $result['kid'],
 			'sender_user' => sanitize_user( (string) $request->get_header( Request_Verifier::HEADER_USER ) ),
 			'user_id'     => $user->ID,
+			'issuer'      => $user->user_login,
 		);
 
 		return true;
@@ -284,7 +285,7 @@ final class Rest_Controller {
 				'root_uuid'  => (string) ( $root['uuid'] ?? '' ),
 				'root_title' => (string) ( $root['title'] ?? '' ),
 				'languages'  => implode( ',', self::languages( $manifest ) ),
-				'user_login' => sprintf( '%1$s (as %2$s)', '' !== $record['sender_user'] ? $record['sender_user'] : '?', wp_get_current_user()->user_login ),
+				'user_login' => sprintf( '%1$s (key issued by %2$s)', '' !== $record['sender_user'] ? $record['sender_user'] : '?', $this->caller['issuer'] ?? '?' ),
 				'status'     => Log_Table::STATUS_PLANNED,
 			)
 		);
@@ -712,10 +713,10 @@ final class Rest_Controller {
 	}
 
 	/**
-	 * Receiver context.
+	 * Receiver context. Content whose author has no account here is attributed to the administrator who issued the key.
 	 */
 	private function context(): Receive_Context {
-		return new Receive_Context( Adapter_Factory::create() );
+		return new Receive_Context( Adapter_Factory::create(), (int) ( $this->caller['user_id'] ?? 0 ) );
 	}
 
 	/**

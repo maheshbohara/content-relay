@@ -101,11 +101,20 @@ final class Receive_Context {
 	public string $uploads_dir;
 
 	/**
+	 * User who becomes the author of content whose author has no account here; 0 picks the current user, then the
+	 * first administrator.
+	 *
+	 * @var int
+	 */
+	public int $fallback_author;
+
+	/**
 	 * Constructor.
 	 *
-	 * @param Adapter $language Language adapter.
+	 * @param Adapter $language        Language adapter.
+	 * @param int     $fallback_author Author for content whose author has no account here.
 	 */
-	public function __construct( Adapter $language ) {
+	public function __construct( Adapter $language, int $fallback_author = 0 ) {
 		$uploads = wp_get_upload_dir();
 
 		$this->language    = $language;
@@ -119,6 +128,8 @@ final class Receive_Context {
 		$this->home_url    = untrailingslashit( (string) get_option( 'home' ) );
 		$this->uploads_url = untrailingslashit( (string) $uploads['baseurl'] );
 		$this->uploads_dir = untrailingslashit( (string) $uploads['basedir'] );
+
+		$this->fallback_author = $fallback_author;
 	}
 
 	/**

@@ -22,7 +22,7 @@ use ContentRelay\Receive\Receive_Context;
 abstract class Test_Case extends \WP_UnitTestCase {
 
 	/**
-	 * Administrator the relay runs as.
+	 * Administrator who issues keys and runs the tests.
 	 *
 	 * @var int
 	 */

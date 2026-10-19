@@ -117,6 +117,8 @@ final class Sender_Loopback_Test extends Test_Case {
 	 * @param array<string, mixed>                 $args Request arguments.
 	 * @param string                               $url  URL.
 	 * @return false|array<string, mixed>|\WP_Error
+	 *
+	 * @throws \RuntimeException When a relay request changes the current user.
 	 */
 	public function serve_locally( $pre, $args, $url ) {
 		$home = home_url();
@@ -144,7 +146,9 @@ final class Sender_Loopback_Test extends Test_Case {
 
 		$user     = get_current_user_id();
 		$response = rest_do_request( $request );
-		wp_set_current_user( $user );
+		if ( get_current_user_id() !== $user ) {
+			throw new \RuntimeException( 'A signed relay request must not change the current user.' );
+		}
 
 		return self::response( $response->get_status(), (string) wp_json_encode( rest_get_server()->response_to_data( $response, false ) ) );
 	}
