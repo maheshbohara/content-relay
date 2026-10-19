@@ -20,7 +20,7 @@ final class Keys_Command {
 	/**
 	 * Issues a key. It is printed once: paste it into `wp content-relay connections add` on the sending site.
 	 *
-	 * Relays made with the key run as the administrator who issued it, so run this with `--user=<admin>`.
+	 * A key is accepted only while the administrator who issued it keeps that role, so run this with `--user=<admin>`.
 	 *
 	 * ## OPTIONS
 	 *
@@ -45,7 +45,7 @@ final class Keys_Command {
 
 		$user = wp_get_current_user();
 		if ( ! $user->exists() || ! user_can( $user, 'manage_options' ) ) {
-			\WP_CLI::error( __( 'Relays run as the administrator who issued the key. Run this with --user=<administrator>.', 'content-relay' ) );
+			\WP_CLI::error( __( 'A key must be issued by an administrator. Run this with --user=<administrator>.', 'content-relay' ) );
 		}
 
 		$issued = ( new Receiver_Keys() )->generate( sanitize_text_field( $label ), $user->ID );

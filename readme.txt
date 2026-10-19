@@ -62,7 +62,8 @@ Content that was edited on the receiving site since its last relay is blocked. I
 
 * Every request is signed with Ed25519 and carries a timestamp and a single-use nonce. Refused requests are rate-limited per IP.
 * The receiving site keeps only the public half of a key; the key itself is shown once. The sending site stores it encrypted with `CONTENT_RELAY_ENCRYPTION_KEY`, or with the `AUTH_KEY` and `SECURE_AUTH_KEY` salts.
-* A relay runs as the administrator who issued the key. Only administrators (`manage_options`) can relay, issue keys or add connections.
+* A key can only relay content: posts, their media and their terms. A signed request is not logged in as any user and cannot manage users, plugins, themes or settings.
+* Only administrators (`manage_options`) can relay, issue keys or add connections. A key stops working when it is revoked or when the administrator who issued it loses that role.
 * The receiving site must use HTTPS.
 * `CONTENT_RELAY_IP_ALLOWLIST` in wp-config.php limits which sending IPs are accepted.
 

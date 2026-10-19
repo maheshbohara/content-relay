@@ -322,7 +322,7 @@ final class Settings_Page {
 		/* translators: %s: key id. */
 		echo '<p><strong>' . esc_html( sprintf( __( 'Key %s issued. Copy it now: it is not stored on this site and cannot be shown again.', 'content-relay' ), $issued['kid'] ) ) . '</strong></p>';
 		echo '<p><textarea class="large-text code" rows="3" readonly onclick="this.select()">' . esc_textarea( $issued['key'] ) . '</textarea></p>';
-		echo '<p>' . esc_html__( 'On the sending site, open Settings → Content Relay and paste it under Add connection. Relays made with this key run as you.', 'content-relay' ) . '</p>';
+		echo '<p>' . esc_html__( 'On the sending site, open Settings → Content Relay and paste it under Add connection. The key lets that site relay content here, and nothing else; it stops working if it is revoked or you are no longer an administrator.', 'content-relay' ) . '</p>';
 		echo '</div>';
 	}
 
@@ -401,7 +401,7 @@ final class Settings_Page {
 		if ( ! Config::can_receive() ) {
 			echo '<p>' . esc_html__( 'Receiving is off, so this site issues no keys. Keys issued earlier stay listed but are not accepted.', 'content-relay' ) . '</p>';
 		} else {
-			echo '<p class="description">' . esc_html__( 'A key lets one sending site relay content here. This site keeps only the public half; the key is shown once when it is issued.', 'content-relay' ) . '</p>';
+			echo '<p class="description">' . esc_html__( 'A key lets one sending site relay content here: posts, their media and their terms. It gives no access to users, plugins, themes or settings. This site keeps only the public half; the key is shown once when it is issued.', 'content-relay' ) . '</p>';
 		}
 
 		$keys = ( new Receiver_Keys() )->all();
