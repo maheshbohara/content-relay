@@ -17,6 +17,8 @@ defined( 'WP_UNINSTALL_PLUGIN' ) || exit;
 function content_relay_uninstall_site(): void {
 	global $wpdb, $wp_filesystem;
 
+	$wpdb->query( $wpdb->prepare( 'DELETE FROM %i WHERE option_name LIKE %s', $wpdb->options, $wpdb->esc_like( 'content_relay_nonce_' ) . '%' ) ); // phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery,WordPress.DB.DirectDatabaseQuery.NoCaching -- Uninstall removes the plugin's own rows.
+
 	foreach ( array( 'content_relay_receiver_keys', 'content_relay_connections', 'content_relay_switches', 'content_relay_post_types', 'content_relay_db_version' ) as $option ) {
 		delete_option( $option );
 	}

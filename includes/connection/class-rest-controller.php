@@ -196,7 +196,7 @@ final class Rest_Controller {
 		$query = $request->get_query_params();
 		unset( $query['rest_route'] );
 
-		$verifier = new Request_Verifier( new Signer(), $this->keys, new Transient_Replay_Guard() );
+		$verifier = new Request_Verifier( new Signer(), $this->keys, new Atomic_Replay_Guard() );
 		$result   = $verifier->verify( $request->get_method(), $request->get_route(), $query, $headers, (string) $request->get_body(), time() );
 		if ( ! $result['ok'] ) {
 			return $this->deny( $ip, $result['reason'], $result['kid'] );
