@@ -50,7 +50,7 @@ final class Receive_Command {
 	 *
 	 * ## EXAMPLES
 	 *
-	 *     wp content-relay plan /tmp/vietnam
+	 *     wp content-relay plan wp-content/uploads/content-relay/bundles/71171611-8199-44be-be66-bde437e58202
 	 *     wp content-relay plan 4356 --to=prod
 	 *
 	 * @param array<int, string>         $args       Positional arguments.
@@ -88,7 +88,7 @@ final class Receive_Command {
 	 *
 	 * ## EXAMPLES
 	 *
-	 *     wp content-relay apply /tmp/vietnam
+	 *     wp content-relay apply wp-content/uploads/content-relay/bundles/71171611-8199-44be-be66-bde437e58202
 	 *
 	 * @param array<int, string>         $args       Positional arguments.
 	 * @param array<string, string|bool> $assoc_args Named arguments.

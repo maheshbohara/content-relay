@@ -76,40 +76,50 @@ final class Command {
 	}
 
 	/**
-	 * Writes a relay bundle — manifest.json and files/<sha1> — to a directory.
+	 * Writes a relay bundle — manifest.json and files/<sha1> — to a new directory in uploads/content-relay/bundles.
+	 *
+	 * The directory's path is printed. Copy it to the receiving site and pass its path to `plan` and `apply` there.
 	 *
 	 * ## OPTIONS
 	 *
 	 * <post-id>
 	 * : Id of the page (any language version).
 	 *
-	 * --dir=<dir>
-	 * : Directory to write the bundle to. Created when missing; must be empty.
+	 * [--porcelain]
+	 * : Print only the bundle's path.
 	 *
 	 * ## EXAMPLES
 	 *
-	 *     wp content-relay bundle 4356 --dir=/tmp/vietnam
+	 *     wp content-relay bundle 4356
 	 *
-	 * @param array<int, string>    $args       Positional arguments.
-	 * @param array<string, string> $assoc_args Named arguments.
+	 * @param array<int, string>         $args       Positional arguments.
+	 * @param array<string, string|bool> $assoc_args Named arguments.
 	 */
 	public function bundle( array $args, array $assoc_args ): void {
-		$dir = rtrim( (string) ( $assoc_args['dir'] ?? '' ), '/' );
-		if ( '' === $dir ) {
-			\WP_CLI::error( __( '--dir is required.', 'content-relay' ) );
-		}
-		if ( is_dir( $dir ) && array() !== array_diff( (array) scandir( $dir ), array( '.', '..' ) ) ) {
-			/* translators: %s: directory path. */
-			\WP_CLI::error( sprintf( __( '%s is not empty.', 'content-relay' ), $dir ) );
-		}
+		$manifest = $this->export( (int) $args[0] );
+		$uploads  = wp_get_upload_dir();
+		$root     = untrailingslashit( (string) $uploads['basedir'] ) . '/content-relay';
+		$dir      = $root . '/bundles/' . wp_generate_uuid4();
+		$copied   = 0;
+
 		if ( ! wp_mkdir_p( $dir . '/files' ) ) {
 			/* translators: %s: directory path. */
 			\WP_CLI::error( sprintf( __( 'Cannot create %s.', 'content-relay' ), $dir ) );
 		}
 
-		$manifest = $this->export( (int) $args[0] );
-		$uploads  = wp_get_upload_dir();
-		$copied   = 0;
+		$files = array(
+			$root . '/index.php'         => "<?php\n// Silence is golden.\n",
+			$root . '/.htaccess'         => "Require all denied\n",
+			$root . '/bundles/index.php' => "<?php\n// Silence is golden.\n",
+			$dir . '/manifest.json'      => (string) wp_json_encode( $manifest, JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE ),
+		);
+		foreach ( $files as $path => $contents ) {
+			// phpcs:ignore WordPress.WP.AlternativeFunctions.file_system_operations_file_put_contents -- Writes inside uploads from WP-CLI; WP_Filesystem may require credentials that the command cannot supply.
+			if ( ! file_exists( $path ) && false === file_put_contents( $path, $contents ) ) {
+				/* translators: %s: file path. */
+				\WP_CLI::error( sprintf( __( 'Cannot write %s.', 'content-relay' ), $path ) );
+			}
+		}
 
 		foreach ( $manifest['objects'] as $record ) {
 			if ( empty( $record['file'] ) ) {
@@ -125,8 +135,10 @@ final class Command {
 			}
 		}
 
-		// phpcs:ignore WordPress.WP.AlternativeFunctions.file_system_operations_file_put_contents -- WP-CLI writes to a local directory the operator named; WP_Filesystem credentials do not apply.
-		file_put_contents( $dir . '/manifest.json', (string) wp_json_encode( $manifest, JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE ) );
+		if ( $assoc_args['porcelain'] ?? false ) {
+			\WP_CLI::line( $dir );
+			return;
+		}
 
 		/* translators: 1: directory path, 2: number of objects, 3: number of files copied, 4: number of warnings. */
 		\WP_CLI::success( sprintf( __( 'Bundle written to %1$s: %2$d objects, %3$d files, %4$d warnings.', 'content-relay' ), $dir, count( $manifest['objects'] ), $copied, count( $manifest['warnings'] ) ) );

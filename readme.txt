@@ -88,7 +88,7 @@ Content Relay contacts only the sites you connect it to with a key: it sends the
 * `wp content-relay verify <session>` — check a relay's pages again.
 * `wp content-relay rollback <session> --to=<label>` — roll back a relay sent to another site; without `--to`, a relay received here.
 * `wp content-relay history [--direction=out|in] [--offline]`
-* `wp content-relay discover <page-id>` · `bundle <page-id> --dir=<dir>` · `plan <dir>` · `apply <dir>` — an offline bundle, for sites that cannot reach each other.
+* `wp content-relay discover <page-id>` · `bundle <page-id>` · `plan <dir>` · `apply <dir>` — an offline bundle, written to `uploads/content-relay/bundles/`, for sites that cannot reach each other.
 
 = Hooks =
 

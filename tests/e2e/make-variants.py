@@ -2,7 +2,7 @@
 """E2E: build mutated copies of a Vietnam bundle for scenarios 3, 6, 7 and 8.
 
 Usage: make-variants.py <work-dir>
-Reads <work-dir>/bundle-v2 (made with `wp content-relay bundle 4356 --dir=<work-dir>/bundle-v2` on the sender)
+Reads <work-dir>/bundle-v2 (a copy of the directory `wp content-relay bundle 4356` wrote on the sender)
 and writes v2-s3 (EN heading changed), v2-s6 (EN parent path missing), v2-s7 (term 227 slug changed) and
 v2-s8 (hero file bytes changed; own files/ copy). Nothing on either site is touched.
 """

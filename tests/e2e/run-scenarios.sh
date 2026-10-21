@@ -3,7 +3,7 @@
 #
 # Prerequisites:
 #   1. PR_WORK=/some/dir tests/e2e/reset-clone.sh                      (clone without Vietnam + baseline)
-#   2. (on wtcwinnipeg.test) wp content-relay bundle 4356 --dir=$PR_WORK/bundle-v2
+#   2. (on wtcwinnipeg.test) cp -R "$(wp content-relay bundle 4356 --porcelain)" $PR_WORK/bundle-v2
 #   3. tests/e2e/make-variants.py $PR_WORK
 # Usage: PR_WORK=/some/dir tests/e2e/run-scenarios.sh
 set -u

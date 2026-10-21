@@ -4,7 +4,7 @@
  *
  * Deactivating keeps all data. Deleting the plugin removes, on every site of a network: the relay log table, the
  * plugin's options and transients, the relay identity meta on posts and terms, and `uploads/content-relay/` (staging,
- * outgoing relay state and the rollback backups). Relayed pages, media and terms stay.
+ * outgoing relay state, offline bundles and the rollback backups). Relayed pages, media and terms stay.
  *
  * @package ContentRelay
  */
