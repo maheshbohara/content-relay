@@ -1,6 +1,6 @@
-=== Content Relay ===
+=== Content Relay – Push Pages and Posts from Staging to Live ===
 Contributors: maheshbohara
-Tags: staging, deployment, migration, multilingual, wpml
+Tags: staging, content sync, deployment, migration, wpml
 Requires at least: 6.4
 Tested up to: 7.1
 Requires PHP: 7.4
@@ -8,11 +8,11 @@ Stable tag: 1.0.0
 License: GPLv2 or later
 License URI: https://www.gnu.org/licenses/gpl-2.0.html
 
-Move a page or post, with translations and media, between dev, staging and production sites on the same theme version. Plan review and rollback.
+Push single pages and posts, with media and WPML translations, from staging to live or back. Sites must share a theme version. Review and roll back.
 
 == Description ==
 
-Content Relay moves one piece of content between the environments of the same site: development, staging and production. It relays a single page, post or custom post type entry, with every translation and its media, in either direction.
+Content Relay pushes one piece of content from staging to live, or from live back to staging or development, without a full database migration. It relays a single page, post or custom post type entry, with every translation and its media, between the environments of the same site, in either direction.
 
 Typical uses:
 
@@ -20,7 +20,7 @@ Typical uses:
 * A page edited on production is needed on development to work on it with real content.
 * A batch of posts written on one environment has to appear on another.
 
-In each case you move only that content, without copying a whole database or overwriting what else changed on the other site.
+In each case you sync only that content, without copying a whole database or overwriting what else changed on the other site. Orders, form entries, users and settings on the live site are left alone.
 
 **The theme must match.** Content Relay only works between sites running the same theme at the same version. A different active theme or theme version blocks the relay; the same version with different theme files gives a warning. Deploy the theme first, then relay the content.
 
@@ -112,6 +112,18 @@ Content Relay contacts only the sites you connect it to with a key: it sends the
 Sending and receiving can also be pinned in wp-config.php with `define( 'CONTENT_RELAY_SEND', true );` and `define( 'CONTENT_RELAY_RECEIVE', true );` (or `false`). A defined constant overrides the switch and locks it.
 
 == Frequently Asked Questions ==
+
+= How do I push a page from staging to live? =
+
+Install the plugin on both sites, issue a key on the live site and paste it into the staging site. Then hover the page in **Pages** on staging, choose **Relay to…**, review the plan the live site answers with, and relay.
+
+= Does it copy or overwrite the whole database? =
+
+No. Only the page or post you relay, its translations, its media and the terms it needs are written. Everything else on the receiving site stays as it is.
+
+= Can I pull content from live back to staging? =
+
+Yes. A relay works in either direction: switch receiving on for the staging site and send from live.
 
 = Can a site both send and receive? =
 
