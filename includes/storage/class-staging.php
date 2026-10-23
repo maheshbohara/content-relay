@@ -359,10 +359,7 @@ final class Staging {
 			return null;
 		}
 
-		// phpcs:ignore WordPress.WP.AlternativeFunctions.file_get_contents_file_get_contents -- Local file inside the staging directory.
-		$raw = file_get_contents( $path );
-
-		return false === $raw ? null : json_decode( $raw, true );
+		return wp_json_file_decode( $path, array( 'associative' => true ) );
 	}
 
 	/**

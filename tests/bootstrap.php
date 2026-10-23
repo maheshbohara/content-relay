@@ -28,6 +28,25 @@ if ( ! function_exists( 'wp_json_encode' ) ) {
 	}
 }
 
+if ( ! function_exists( 'wp_json_file_decode' ) ) {
+	/**
+	 * Unit-test stand-in for WordPress core's wp_json_file_decode().
+	 *
+	 * @param string               $filename Path to the JSON file.
+	 * @param array<string, mixed> $options  Options; only `associative` is supported.
+	 * @return mixed Null when the file is missing or invalid.
+	 */
+	function wp_json_file_decode( $filename, $options = array() ) { // phpcs:ignore WordPress.NamingConventions.PrefixAllGlobals.NonPrefixedFunctionFound -- Shim of a WordPress core function.
+		if ( ! is_readable( $filename ) ) {
+			return null;
+		}
+
+		$data = json_decode( (string) file_get_contents( $filename ), ! empty( $options['associative'] ) ); // phpcs:ignore WordPress.WP.AlternativeFunctions.file_get_contents_file_get_contents -- This is the wp_json_file_decode() shim itself.
+
+		return JSON_ERROR_NONE === json_last_error() ? $data : null;
+	}
+}
+
 if ( ! function_exists( 'esc_html' ) ) {
 	/**
 	 * Unit-test stand-in for WordPress core's esc_html().

@@ -781,7 +781,7 @@ final class Sender {
 			return null;
 		}
 
-		$data = json_decode( (string) file_get_contents( $path ), true ); // phpcs:ignore WordPress.WP.AlternativeFunctions.file_get_contents_file_get_contents -- Local file inside uploads.
+		$data = wp_json_file_decode( $path, array( 'associative' => true ) );
 
 		return is_array( $data ) ? $data : null;
 	}

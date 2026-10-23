@@ -60,8 +60,7 @@ final class Bundle {
 			throw new Receive_Exception( sprintf( 'No manifest.json in %s.', esc_html( $dir ) ) );
 		}
 
-		// phpcs:ignore WordPress.WP.AlternativeFunctions.file_get_contents_file_get_contents -- Local bundle file, not a remote URL.
-		$manifest = json_decode( (string) file_get_contents( $file ), true );
+		$manifest = wp_json_file_decode( $file, array( 'associative' => true ) );
 		if ( ! is_array( $manifest ) ) {
 			throw new Receive_Exception( 'manifest.json is not valid JSON.' );
 		}
