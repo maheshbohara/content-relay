@@ -112,8 +112,10 @@ final class Backup {
 			throw new Apply_Exception( esc_html( sprintf( 'No %1$s record for session %2$s on this site.', $subdirectory, $session ) ) );
 		}
 
-		// phpcs:ignore WordPress.WP.AlternativeFunctions.file_get_contents_file_get_contents -- Local file inside uploads.
-		$raw  = file_get_contents( $path );
+		require_once ABSPATH . 'wp-admin/includes/class-wp-filesystem-base.php';
+		require_once ABSPATH . 'wp-admin/includes/class-wp-filesystem-direct.php';
+
+		$raw  = ( new \WP_Filesystem_Direct( null ) )->get_contents( $path );
 		$json = false === $raw ? false : gzdecode( $raw );
 		$data = false === $json ? null : json_decode( $json, true );
 		if ( ! is_array( $data ) ) {
