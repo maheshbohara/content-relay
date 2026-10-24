@@ -290,7 +290,7 @@ final class Sender {
 				}
 
 				$offset   = (int) $state['files'][ $index ]['received'];
-				$chunk    = (string) file_get_contents( $path, false, null, $offset, (int) $state['chunk_bytes'] ); // phpcs:ignore WordPress.WP.AlternativeFunctions.file_get_contents_file_get_contents -- Reads one chunk of a local uploads file.
+				$chunk    = self::read_chunk( $path, $offset, (int) $state['chunk_bytes'] );
 				$response = $client->upload( $session, (string) $file['sha1'], $offset, $chunk );
 				$sent     = true;
 
@@ -766,6 +766,22 @@ final class Sender {
 		if ( false === file_put_contents( $dir . '/' . $name, (string) wp_json_encode( $data, JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE ), LOCK_EX ) ) {
 			throw new Send_Exception( esc_html__( 'Cannot write the outgoing relay state in uploads.', 'content-relay' ), 'storage_error', 500 );
 		}
+	}
+
+	/**
+	 * Reads part of a local file.
+	 *
+	 * @param string $path   Path.
+	 * @param int    $offset First byte.
+	 * @param int    $length Bytes to read at most.
+	 */
+	private static function read_chunk( string $path, int $offset, int $length ): string {
+		$file = new \SplFileObject( $path, 'rb' );
+		if ( 0 !== $file->fseek( $offset ) ) {
+			return '';
+		}
+
+		return (string) $file->fread( $length );
 	}
 
 	/**
