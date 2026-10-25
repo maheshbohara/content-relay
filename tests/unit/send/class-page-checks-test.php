@@ -71,6 +71,17 @@ final class Page_Checks_Test extends TestCase {
 	}
 
 	/**
+	 * Sites that differ only by port are told apart.
+	 */
+	public function test_sender_urls_with_ports(): void {
+		$html = '<a href="http://localhost:8910/a/">Receiver</a><a href="http://localhost:8900/b/">Sender</a><a href="http://localhost/c/">Default port</a>';
+
+		$this->assertSame( 1, Page_Checks::sender_urls( $html, 'localhost:8900' )['count'] );
+		$this->assertSame( 1, Page_Checks::sender_urls( $html, 'localhost' )['count'] );
+		$this->assertSame( 0, Page_Checks::sender_urls( '<a href="http://localhost:89001/">x</a>', 'localhost:8900' )['count'] );
+	}
+
+	/**
 	 * Upload assets come from src, srcset and lazy-load attributes, under the uploads URL only, unique and capped.
 	 */
 	public function test_upload_assets(): void {

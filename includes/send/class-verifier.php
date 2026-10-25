@@ -69,10 +69,14 @@ final class Verifier {
 		}
 
 		$sender_host = strtolower( (string) wp_parse_url( $sender_home, PHP_URL_HOST ) );
-		$budget      = self::MAX_ASSETS;
-		$assets      = array();
-		$pages       = array();
-		$problems    = array();
+		$sender_port = wp_parse_url( $sender_home, PHP_URL_PORT );
+		if ( '' !== $sender_host && is_int( $sender_port ) ) {
+			$sender_host .= ':' . $sender_port;
+		}
+		$budget   = self::MAX_ASSETS;
+		$assets   = array();
+		$pages    = array();
+		$problems = array();
 
 		foreach ( $targets as $target ) {
 			$page = $this->page( $target, $urls, $sender_host, $uploads_url, $budget, $assets );
@@ -97,7 +101,7 @@ final class Verifier {
 	 *
 	 * @param array<string, mixed>  $target      Page.
 	 * @param array<string, string> $urls        Key => address of every relayed page.
-	 * @param string                $sender_host Sender host name.
+	 * @param string                $sender_host Sender host, with `:port` when it has one.
 	 * @param string                $uploads_url Receiver uploads URL.
 	 * @param int                   $budget      Image requests left; decremented.
 	 * @param array<string, bool>   $assets      Image URL => whether it loads, shared across pages.

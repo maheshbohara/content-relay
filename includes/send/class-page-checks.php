@@ -94,7 +94,7 @@ final class Page_Checks {
 	 * receiver on a subdomain of the sender (`dev.example.com` receiving from `example.com`) is not mistaken for it.
 	 *
 	 * @param string $html  Page HTML.
-	 * @param string $host  Sender host name.
+	 * @param string $host  Sender host, with `:port` when it uses a non-default one.
 	 * @param int    $limit Snippets to return.
 	 * @return array{count: int, snippets: string[]}
 	 */
@@ -108,7 +108,9 @@ final class Page_Checks {
 			return $result;
 		}
 
-		$pattern = '~(?://|\\\\/\\\\/|%2F%2F)(?:www\.)?' . preg_quote( $host, '~' ) . '(?![a-z0-9-]|\.[a-z0-9])~i';
+		// Without a port of its own, the host still must not match the same name on another port: that is another site.
+		$port    = false === strpos( $host, ':' ) ? '|:\d' : '';
+		$pattern = '~(?://|\\\\/\\\\/|%2F%2F)(?:www\.)?' . preg_quote( $host, '~' ) . '(?![a-z0-9-]|\.[a-z0-9]' . $port . ')~i';
 		if ( ! preg_match_all( $pattern, $html, $matches, PREG_OFFSET_CAPTURE ) ) {
 			return $result;
 		}
