@@ -4,6 +4,7 @@
 /.gitignore
 /.distignore
 /README.md
+/.wordpress-org
 /.wp-env.json
 /.wp-env.override.json
 /.phpunit.result.cache

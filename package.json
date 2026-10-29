@@ -12,9 +12,12 @@
 		"env:cli": "wp-env run cli --env-cwd=wp-content/plugins/content-relay",
 		"build": "rm -rf build && mkdir -p build/content-relay && rsync -a --exclude-from=.distignore ./ build/content-relay/ && cd build && zip -qr content-relay.zip content-relay",
 		"plugin-check": "npm run build && wp-env run cli wp plugin check /var/www/html/wp-content/plugins/content-relay/build/content-relay",
-		"test:integration": "wp-env run cli wp db query 'CREATE DATABASE IF NOT EXISTS content_relay_tests' && wp-env run cli --env-cwd=wp-content/plugins/content-relay vendor/bin/phpunit -c phpunit-integration.xml.dist"
+		"test:integration": "wp-env run cli wp db query 'CREATE DATABASE IF NOT EXISTS content_relay_tests' && wp-env run cli --env-cwd=wp-content/plugins/content-relay vendor/bin/phpunit -c phpunit-integration.xml.dist",
+		"assets": "node .wordpress-org/source/render.mjs",
+		"screenshots": "tests/screenshots/seed.sh && node tests/screenshots/capture.mjs"
 	},
 	"devDependencies": {
-		"@wordpress/env": "^11.17.0"
+		"@wordpress/env": "^11.17.0",
+		"playwright": "1.63.0"
 	}
 }
