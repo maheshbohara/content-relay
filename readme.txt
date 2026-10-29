@@ -145,6 +145,14 @@ Content Relay clears the cache entries of the posts it writes. Tick **Flush the 
 
 Deactivating keeps everything. Deleting the plugin removes its settings, keys and connections, the relay log, the relay identity stored on posts and terms, and `wp-content/uploads/content-relay/`, which holds the rollback backups. Relayed pages, media and terms stay.
 
+== Screenshots ==
+
+1. A "Relay to…" action on every page you can relay.
+2. The receiving site's plan, with a diff of each field and of the content it would change. Nothing is written until you approve it.
+3. The result of a relay and the checks the sending site ran on the relayed page.
+4. The relay history, where any relay can be rolled back.
+5. The receiving site's settings: receiving switched on, and the key issued to the sending site.
+
 == Changelog ==
 
 = 1.0.0 =
