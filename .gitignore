@@ -31,3 +31,6 @@ Thumbs.db
 /.claude/
 /.env
 /.env.*
+
+# Screenshot login written by tests/screenshots/seed.sh
+/tests/screenshots/.auth
